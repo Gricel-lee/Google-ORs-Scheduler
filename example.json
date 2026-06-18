@@ -140,8 +140,8 @@
       "Deliver_Box1":  {"depends_on": ["Harvest_Row1"], "dependency_type": "AND"},
       "Harvest_Row2":  {"depends_on": ["Deliver_Box1"], "dependency_type": "AND"},
       "Deliver_Box2":  {"depends_on": ["Harvest_Row2"], "dependency_type": "AND"},
-      "Drone_Relay":   {"depends_on": ["Deliver_Box1_HP", "Deliver_Box2_HP"], "dependency_type": "OR"},
-      "Tractor_Final": {"depends_on": ["Deliver_Box1_CP", "Deliver_Box2_CP", "Drone_Relay"], "dependency_type": "OR"}
+      "Drone_Relay":   {"depends_on": ["Deliver_Box1_HP", "Deliver_Box2_HP"], "dependency_type": "AND"},
+      "Tractor_Final": {"depends_on": ["Deliver_Box1_CP", "Deliver_Box2_CP", "Drone_Relay"], "dependency_type": "AND"}
     },
 
     "metrics": ["duration", "fatigue"],
@@ -151,7 +151,7 @@
       {
         "id": "human1",
         "description": "human worker 1",
-        "initial_location": "l1",
+        "initial_location": "l2",
         "tasks": [
           {
             "id": "Harvest_Row1",

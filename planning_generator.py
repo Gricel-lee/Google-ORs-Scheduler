@@ -99,13 +99,13 @@ def classify_nodes(required: set, task_to_agents: dict, task_graph: dict) -> tup
     for vid in virtual:
         optional_subs.update(find_subtasks(vid, concrete))
 
-    # A concrete task is "derived-optional" if dependency_type=OR and every
-    # dep in depends_on is an optional subtask.
+    # A concrete task is "derived-optional" if ALL its deps are optional subtasks
+    # (meaning the task only needs to run when those optional predecessors run).
     derived_optional: set = set()
     for tid in concrete - optional_subs:
         node = task_graph.get(tid, {})
         deps = node.get('depends_on', [])
-        if node.get('dependency_type') == 'OR' and deps and all(d in optional_subs for d in deps):
+        if deps and all(d in optional_subs for d in deps):
             derived_optional.add(tid)
 
     return concrete, virtual, derived_optional
@@ -149,7 +149,17 @@ def generate(data: dict) -> str:
     # allowing collect_required to reach the full dependency chain.
     task_graph = augment_task_graph(task_graph, task_to_agents)
 
-    required    = collect_required(task_graph, targets)
+    required = collect_required(task_graph, targets)
+
+    # Pull virtual parent nodes into required whenever a concrete subtask is already there.
+    # (e.g. Tractor_Final depends directly on Deliver_Box2_CP, so Deliver_Box2 is never
+    #  visited by collect_required; but it must still be classified as virtual.)
+    virtual_nodes_in_graph = {nid for nid in task_graph if nid not in task_to_agents}
+    for tid in list(required):
+        if tid in task_to_agents:
+            for vid in virtual_nodes_in_graph:
+                if tid.startswith(vid + '_'):
+                    required.add(vid)
 
     concrete, virtual, derived_optional = classify_nodes(required, task_to_agents, task_graph)
 
@@ -279,9 +289,10 @@ def generate(data: dict) -> str:
             w(f'        model.NewOptionalIntervalVar(ts[{tid!r}], {dur}, te[{tid!r}], {p}, {(tid+"_iv")!r}))')
             # presence ↔ (dep1 OR dep2 OR ...)
             for dp in dep_presences:
-                w(f'    model.AddImplication({dp}, {p})         # if {dp} then {tid} runs')
-            w(f'    model.AddBoolOr([{", ".join(f"{dp}.Not()" for dp in dep_presences)} , {p}.Not()])')
-            w(f'    # ^ {tid} only runs if at least one dep is active')
+                w(f'    model.AddImplication({dp}, {p})  # if {dp} is active, {tid} must run')
+            # If {tid} runs, at least one dep must be active (NOT presence → impossible, so: presence → any dep)
+            w(f'    model.AddBoolOr([{p}.Not(), {", ".join(dep_presences)}])')
+            w(f'    # ^ {tid} only runs if at least one of {[d for d in deps]} is active')
             w()
 
     # ── Dependencies ──────────────────────────────────────────────────────────
@@ -298,27 +309,42 @@ def generate(data: dict) -> str:
 
         if dep_type == 'AND':
             for dep in deps:
-                w(f'    # {tid} starts after {dep}  (AND)')
+                dep_is_opt = dep in optional_subs or dep in derived_optional
+                dep_p = f'_p_{safe(dep)}'
+                w(f'    # {tid} starts after {dep}  (AND{"_IF_ACTIVE" if dep_is_opt else ""})')
+                guards = []
                 if is_opt:
-                    w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}]).OnlyEnforceIf({p_tid})')
-                else:
+                    guards.append(p_tid)
+                if dep_is_opt:
+                    guards.append(dep_p)
+                if len(guards) == 0:
                     w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}])')
+                elif len(guards) == 1:
+                    w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}]).OnlyEnforceIf({guards[0]})')
+                else:
+                    w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}]).OnlyEnforceIf([{", ".join(guards)}])')
         else:
             bvars = []
             for dep in deps:
                 bv = f'_dep_{safe(tid)}_{safe(dep)}'
+                dep_is_opt = dep in optional_subs or dep in derived_optional
+                dep_p = f'_p_{safe(dep)}'
                 w(f'    {bv} = model.NewBoolVar({(tid+"_after_"+dep)!r})')
                 if is_opt:
                     w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}]).OnlyEnforceIf([{bv}, {p_tid}])')
                 else:
                     w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}]).OnlyEnforceIf({bv})')
+                if dep_is_opt:
+                    # Guard: solver may only "wait for dep" when dep is actually active.
+                    # Without this, an inactive dep's ts/te=0 trivially satisfies the constraint.
+                    w(f'    model.AddImplication({bv}, {dep_p})')
                 bvars.append(bv)
             if is_opt:
                 w(f'    model.AddBoolOr([{", ".join(bvars)}, {p_tid}.Not()])')
-                w(f'    # ^ {tid}: when active, must start after at least one of {deps}')
+                w(f'    # ^ {tid}: when active, must start after at least one ACTIVE dep in {deps}')
             else:
                 w(f'    model.AddBoolOr([{", ".join(bvars)}])')
-                w(f'    # ^ {tid} starts after ANY of {deps}')
+                w(f'    # ^ {tid} starts after ANY active dep in {deps}')
     w()
 
     # ── Agent no-overlap ──────────────────────────────────────────────────────
