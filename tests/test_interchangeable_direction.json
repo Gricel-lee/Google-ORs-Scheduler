@@ -1,0 +1,51 @@
+{
+  "_comment": "Interchangeable-direction scenario: a harvesting task can go l1→l2 or l2→l1. Agent starts at l2, so reversed direction (l2→l1) avoids 5-min pre-travel. Tests _dir_ BoolVar and initial-positioning constraints.",
+  "locations": [
+    {"id": "l1", "description": "Row low end",  "coordinates": {"x": 0, "y": 0}},
+    {"id": "l2", "description": "Row high end", "coordinates": {"x": 0, "y": 1}},
+    {"id": "l3", "description": "Depot",        "coordinates": {"x": 1, "y": 0}}
+  ],
+  "paths": [
+    {"id": "l1l2",  "start_location": "l1", "end_location": "l2"},
+    {"id": "l1l3",  "start_location": "l1", "end_location": "l3"},
+    {"id": "l2l3",  "start_location": "l2", "end_location": "l3"}
+  ],
+  "tasks": [
+    {"id": "Harvest", "start_location": "l1", "end_location": "l2",
+     "start_end_location_interchangeable": true,
+     "description": "Harvest the row; can go either direction"},
+    {"id": "Deliver", "start_location": "l1", "end_location": "l3",
+     "start_end_location_interchangeable": false,
+     "description": "Carry produce from row end (l1) to depot"}
+  ],
+  "task_graph": {
+    "Harvest": {"depends_on": [],          "dependency_type": "AND"},
+    "Deliver": {"depends_on": ["Harvest"], "dependency_type": "AND"}
+  },
+  "metrics": ["duration"],
+  "agents": [
+    {
+      "id": "worker",
+      "description": "Worker starting at l2",
+      "initial_location": "l2",
+      "tasks": [
+        {"id": "Harvest", "metric_values": {"duration": 10}},
+        {"id": "Deliver", "metric_values": {"duration": 6}}
+      ],
+      "travel": [
+        {"id": "l1l2",  "duration": 5},
+        {"id": "l1l3",  "duration": 3},
+        {"id": "l2l3",  "duration": 7}
+      ]
+    }
+  ],
+  "constraints": {
+    "tasks_to_be_completed": ["Deliver"],
+    "max_duration": 60
+  },
+  "_expected": {
+    "feasible": true,
+    "makespan": 24,
+    "_note": "Worker starts at l2. Reversed direction (l2→l1): no pre-travel, Harvest=10+5(l1l2)=15, Deliver=6+3(l1l3 traversal)=9, total=15+9=24."
+  }
+}

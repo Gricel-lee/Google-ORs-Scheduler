@@ -124,15 +124,16 @@
   ],
 
   
-  "_comment": "Tasks",
+  "_comment": "Tasks — start/end_location are the agent's physical start and end of each task",
   "tasks": [
-    {"id": "Harvest_Row1", "start_location": "l1", "end_location": "l2", "start_end_location_interchangeable": true},
-    {"id": "Harvest_Row2", "start_location": "l3", "end_location": "l4", "start_end_location_interchangeable": true},
-    {"id": "Deliver_Box1_CP", "start_location": "l5", "end_location": "l5", "start_end_location_interchangeable": false},
-    {"id": "Deliver_Box1_HP", "start_location": "l6", "end_location": "l6", "start_end_location_interchangeable": false, "description": "deliver to handover point"},
-    {"id": "Deliver_Box2_CP", "start_location": "l5", "end_location": "l5", "start_end_location_interchangeable": false},
-    {"id": "Deliver_Box2_HP", "start_location": "l6", "end_location": "l6", "start_end_location_interchangeable": false, "description": "deliver to handover point"},
-    {"id": "Tractor_Final", "start_location": "l7", "end_location": "l7", "start_end_location_interchangeable": false, "description": "deliver to final destination"}
+    {"id": "Harvest_Row1",   "start_location": "l1", "end_location": "l2", "start_end_location_interchangeable": true},
+    {"id": "Harvest_Row2",   "start_location": "l3", "end_location": "l4", "start_end_location_interchangeable": true},
+    {"id": "Deliver_Box1_CP","start_location": "l5", "end_location": "l5", "start_end_location_interchangeable": false, "description": "human carries box from row1-end to collection point"},
+    {"id": "Deliver_Box1_HP","start_location": "l2", "end_location": "l6", "start_end_location_interchangeable": false, "description": "human carries box from row1-end to handover point"},
+    {"id": "Deliver_Box2_CP","start_location": "l4", "end_location": "l5", "start_end_location_interchangeable": false, "description": "human carries box from row2-end to collection point"},
+    {"id": "Deliver_Box2_HP","start_location": "l4", "end_location": "l6", "start_end_location_interchangeable": false, "description": "human carries box from row2-end to handover point"},
+    {"id": "Drone_Relay",    "start_location": "l6", "end_location": "l5", "start_end_location_interchangeable": false, "description": "drone carries box(es) from handover to collection point"},
+    {"id": "Tractor_Final",  "start_location": "l5", "end_location": "l7", "start_end_location_interchangeable": false, "description": "tractor delivers from collection point to final destination"}
   ],
 
     "task_graph": {
@@ -144,8 +145,6 @@
       "Tractor_Final": {"depends_on": ["Deliver_Box1_CP", "Deliver_Box2_CP", "Drone_Relay"], "dependency_type": "AND"}
     },
 
-    "metrics": ["duration", "fatigue"],
-
     "_comment": "Agents",
     "agents": [
       {
@@ -155,43 +154,43 @@
         "tasks": [
           {
             "id": "Harvest_Row1",
-            "metric_values": {"duration": 10, "fatigue": 3},
+            "duration": 2, "fatigue": 3,
             "probability_of_success": 1.00,
             "number_of_retries": 3
           },
           {
             "id": "Deliver_Box1_HP",
-            "metric_values": {"duration_direct": 5, "duration_relay": 8, "fatigue": 1},
+            "duration": 8, "fatigue": 1,
             "probability_of_success": 1.00,
             "number_of_retries": 2
           },
           {
             "id": "Deliver_Box1_CP",
-            "metric_values": {"duration_direct": 5, "duration_relay": 8, "fatigue": 1},
+            "duration": 5, "fatigue": 1,
             "probability_of_success": 1.00,
             "number_of_retries": 2
           },
           {
             "id": "Harvest_Row2",
-            "metric_values": {"duration": 10, "fatigue": 3},
+            "duration": 10, "fatigue": 3,
             "probability_of_success": 1.00,
             "number_of_retries": 3
           },
           {
             "id": "Deliver_Box2_HP",
-            "metric_values": {"duration_direct": 5, "duration_relay": 8, "fatigue": 1},
+            "duration": 8, "fatigue": 1,
             "probability_of_success": 1.00,
             "number_of_retries": 2
           },
           {
             "id": "Deliver_Box2_CP",
-            "metric_values": {"duration_direct": 5, "duration_relay": 8, "fatigue": 1},
+            "duration": 5, "fatigue": 1,
             "probability_of_success": 1.00,
             "number_of_retries": 2
           }
         ],
         "travel": [
-          {"id": "l1l2", "duration": 10},
+          {"id": "l1l2", "duration": 1},
           {"id": "l2l5", "duration": 5},
           {"id": "l2l6", "duration": 8},
           {"id": "l3l4", "duration": 10},
@@ -208,7 +207,7 @@
         "tasks": [
           {
             "id": "Drone_Relay",
-            "metric_values": {"duration": 3, "fatigue": 0},
+            "duration": 3, "fatigue": 0,
             "probability_of_success": 0.95,
             "number_of_retries": 1
           }
@@ -224,7 +223,7 @@
         "tasks": [
           {
             "id": "Tractor_Final",
-            "metric_values": {"duration": 15, "fatigue": 0},
+            "duration": 15, "fatigue": 0,
             "probability_of_success": 0.99,
             "number_of_retries": 1
           }

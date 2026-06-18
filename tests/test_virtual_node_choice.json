@@ -1,0 +1,60 @@
+{
+  "_comment": "Virtual node scenario: two agents can perform 'Pack', solver picks whichever finishes sooner. Pack_Fast is cheaper but Pack_Slow has a faster successor. Tests AddExactlyOne + virtual ts/te binding.",
+  "locations": [
+    {"id": "input",  "description": "Input area",  "coordinates": {"x": 0, "y": 0}},
+    {"id": "packA",  "description": "Station A",   "coordinates": {"x": 1, "y": 0}},
+    {"id": "packB",  "description": "Station B",   "coordinates": {"x": 1, "y": 1}},
+    {"id": "output", "description": "Output area", "coordinates": {"x": 2, "y": 0}}
+  ],
+  "paths": [
+    {"id": "packA_out", "start_location": "packA", "end_location": "output"},
+    {"id": "packB_out", "start_location": "packB", "end_location": "output"}
+  ],
+  "tasks": [
+    {"id": "Load",      "start_location": "input",  "end_location": "input"},
+    {"id": "Pack_Fast", "start_location": "packA",  "end_location": "packA",  "description": "Quick packer, 4 min"},
+    {"id": "Pack_Slow", "start_location": "packB",  "end_location": "packB",  "description": "Slow packer, 7 min"},
+    {"id": "Ship",      "start_location": "output", "end_location": "output"}
+  ],
+  "task_graph": {
+    "Load": {"depends_on": [],     "dependency_type": "AND"},
+    "Pack": {"depends_on": ["Load"], "dependency_type": "AND"},
+    "Ship": {"depends_on": ["Pack"], "dependency_type": "AND"}
+  },
+  "metrics": ["duration"],
+  "agents": [
+    {
+      "id": "robot_fast",
+      "description": "Fast packing robot at station A",
+      "initial_location": "packA",
+      "tasks": [
+        {"id": "Load",      "metric_values": {"duration": 3}},
+        {"id": "Pack_Fast", "metric_values": {"duration": 4}},
+        {"id": "Ship",      "metric_values": {"duration": 6}}
+      ],
+      "travel": [
+        {"id": "packA_out", "duration": 2}
+      ]
+    },
+    {
+      "id": "robot_slow",
+      "description": "Slow packing robot at station B",
+      "initial_location": "packB",
+      "tasks": [
+        {"id": "Pack_Slow", "metric_values": {"duration": 7}}
+      ],
+      "travel": [
+        {"id": "packB_out", "duration": 1}
+      ]
+    }
+  ],
+  "constraints": {
+    "tasks_to_be_completed": ["Ship"],
+    "max_duration": 60
+  },
+  "_expected": {
+    "feasible": true,
+    "makespan": 15,
+    "_note": "robot_fast does Load(3)+Pack_Fast(4)+2(packA→output)+Ship(6)=15. Pack_Slow path: 3+7+1(packB→output)+6=17. Solver picks Pack_Fast."
+  }
+}

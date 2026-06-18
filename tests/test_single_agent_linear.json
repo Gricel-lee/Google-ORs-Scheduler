@@ -1,0 +1,48 @@
+{
+  "_comment": "Minimal scenario: one agent, three tasks in a linear chain. No virtual nodes, no optional tasks, no travel needed.",
+  "locations": [
+    {"id": "base", "coordinates": {"x": 0, "y": 0}},
+    {"id": "field", "coordinates": {"x": 1, "y": 0}},
+    {"id": "store", "coordinates": {"x": 2, "y": 0}}
+  ],
+  "paths": [
+    {"id": "base_field", "start_location": "base", "end_location": "field"},
+    {"id": "field_store", "start_location": "field", "end_location": "store"}
+  ],
+  "tasks": [
+    {"id": "Prepare",  "start_location": "base",  "end_location": "base"},
+    {"id": "Harvest",  "start_location": "field", "end_location": "field"},
+    {"id": "Store",    "start_location": "store", "end_location": "store"}
+  ],
+  "task_graph": {
+    "Prepare": {"depends_on": [],          "dependency_type": "AND"},
+    "Harvest": {"depends_on": ["Prepare"], "dependency_type": "AND"},
+    "Store":   {"depends_on": ["Harvest"], "dependency_type": "AND"}
+  },
+  "metrics": ["duration"],
+  "agents": [
+    {
+      "id": "worker1",
+      "description": "single worker",
+      "initial_location": "base",
+      "tasks": [
+        {"id": "Prepare", "metric_values": {"duration": 5}},
+        {"id": "Harvest", "metric_values": {"duration": 10}},
+        {"id": "Store",   "metric_values": {"duration": 3}}
+      ],
+      "travel": [
+        {"id": "base_field",  "duration": 2},
+        {"id": "field_store", "duration": 4}
+      ]
+    }
+  ],
+  "constraints": {
+    "tasks_to_be_completed": ["Store"],
+    "max_duration": 60
+  },
+  "_expected": {
+    "feasible": true,
+    "makespan": 24,
+    "_note": "5 (Prepare) + 2 (base→field) + 10 (Harvest) + 4 (field→store) + 3 (Store) = 24."
+  }
+}

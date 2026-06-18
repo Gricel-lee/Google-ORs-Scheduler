@@ -1,0 +1,74 @@
+{
+  "_comment": "Derived-optional task scenario: a relay task (Transfer) runs only when boxes go via the handover point. Tests derived-optional classification and AddImplication constraints. Mirrors the relay logic in example.json but simplified to two boxes and one choice each.",
+  "locations": [
+    {"id": "src",     "description": "Source",         "coordinates": {"x": 0, "y": 0}},
+    {"id": "direct",  "description": "Direct drop-off","coordinates": {"x": 1, "y": 0}},
+    {"id": "relay_p", "description": "Relay point",    "coordinates": {"x": 1, "y": 1}},
+    {"id": "dest",    "description": "Destination",    "coordinates": {"x": 2, "y": 0}}
+  ],
+  "paths": [
+    {"id": "src_direct",  "start_location": "src",     "end_location": "direct"},
+    {"id": "src_relay",   "start_location": "src",     "end_location": "relay_p"},
+    {"id": "relay_direct","start_location": "relay_p", "end_location": "direct"},
+    {"id": "direct_dest", "start_location": "direct",  "end_location": "dest"}
+  ],
+  "tasks": [
+    {"id": "Collect",         "start_location": "src",     "end_location": "src"},
+    {"id": "Deliver_Direct",  "start_location": "src",     "end_location": "direct",  "description": "Carry item directly to drop-off"},
+    {"id": "Deliver_Relay",   "start_location": "src",     "end_location": "relay_p", "description": "Carry item to relay point"},
+    {"id": "Transfer",        "start_location": "relay_p", "end_location": "direct",  "description": "Relay agent moves item from relay_p to direct"},
+    {"id": "Finalize",        "start_location": "dest",    "end_location": "dest"}
+  ],
+  "task_graph": {
+    "Collect":        {"depends_on": [],                               "dependency_type": "AND"},
+    "Deliver":        {"depends_on": ["Collect"],                      "dependency_type": "AND"},
+    "Transfer":       {"depends_on": ["Deliver_Relay"],                "dependency_type": "AND"},
+    "Finalize":       {"depends_on": ["Deliver_Direct", "Transfer"],   "dependency_type": "AND"}
+  },
+  "metrics": ["duration"],
+  "agents": [
+    {
+      "id": "carrier",
+      "description": "Carries items from source",
+      "initial_location": "src",
+      "tasks": [
+        {"id": "Collect",        "metric_values": {"duration": 5}},
+        {"id": "Deliver_Direct", "metric_values": {"duration": 4}},
+        {"id": "Deliver_Relay",  "metric_values": {"duration": 6}}
+      ],
+      "travel": [
+        {"id": "src_direct",  "duration": 2},
+        {"id": "src_relay",   "duration": 3}
+      ]
+    },
+    {
+      "id": "relay_agent",
+      "description": "Moves items from relay point to direct",
+      "initial_location": "relay_p",
+      "tasks": [
+        {"id": "Transfer", "metric_values": {"duration": 3}}
+      ],
+      "travel": [
+        {"id": "relay_direct", "duration": 2}
+      ]
+    },
+    {
+      "id": "finisher",
+      "description": "Performs final step at destination",
+      "initial_location": "dest",
+      "tasks": [
+        {"id": "Finalize", "metric_values": {"duration": 5}}
+      ],
+      "travel": []
+    }
+  ],
+  "constraints": {
+    "tasks_to_be_completed": ["Finalize"],
+    "max_duration": 60
+  },
+  "_expected": {
+    "feasible": true,
+    "makespan": 16,
+    "_note": "Direct path: Collect(5)+Deliver_Direct(4+2 traversal src→direct)+Finalize(5)=16. Relay path would be longer. Solver picks direct, Transfer stays inactive."
+  }
+}

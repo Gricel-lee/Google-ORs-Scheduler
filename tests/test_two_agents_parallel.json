@@ -1,0 +1,67 @@
+{
+  "_comment": "Two agents work in parallel on independent rows, then a final task waits for both. Tests AND deps across different agents.",
+  "locations": [
+    {"id": "l1", "description": "Row A start", "coordinates": {"x": 0, "y": 0}},
+    {"id": "l2", "description": "Row A end",   "coordinates": {"x": 1, "y": 0}},
+    {"id": "l3", "description": "Row B start", "coordinates": {"x": 0, "y": 1}},
+    {"id": "l4", "description": "Row B end",   "coordinates": {"x": 1, "y": 1}},
+    {"id": "l5", "description": "Depot",       "coordinates": {"x": 2, "y": 0}}
+  ],
+  "paths": [
+    {"id": "l2l5", "start_location": "l2", "end_location": "l5"},
+    {"id": "l4l5", "start_location": "l4", "end_location": "l5"}
+  ],
+  "tasks": [
+    {"id": "Harvest_A", "start_location": "l1", "end_location": "l2"},
+    {"id": "Harvest_B", "start_location": "l3", "end_location": "l4"},
+    {"id": "Combine",   "start_location": "l5", "end_location": "l5"}
+  ],
+  "task_graph": {
+    "Harvest_A": {"depends_on": [],                    "dependency_type": "AND"},
+    "Harvest_B": {"depends_on": [],                    "dependency_type": "AND"},
+    "Combine":   {"depends_on": ["Harvest_A", "Harvest_B"], "dependency_type": "AND"}
+  },
+  "metrics": ["duration"],
+  "agents": [
+    {
+      "id": "agent_a",
+      "description": "Worker for row A",
+      "initial_location": "l1",
+      "tasks": [
+        {"id": "Harvest_A", "metric_values": {"duration": 8}}
+      ],
+      "travel": [
+        {"id": "l2l5", "duration": 3}
+      ]
+    },
+    {
+      "id": "agent_b",
+      "description": "Worker for row B",
+      "initial_location": "l3",
+      "tasks": [
+        {"id": "Harvest_B", "metric_values": {"duration": 12}}
+      ],
+      "travel": [
+        {"id": "l4l5", "duration": 3}
+      ]
+    },
+    {
+      "id": "machine1",
+      "description": "Combines both harvests at depot",
+      "initial_location": "l5",
+      "tasks": [
+        {"id": "Combine", "metric_values": {"duration": 5}}
+      ],
+      "travel": []
+    }
+  ],
+  "constraints": {
+    "tasks_to_be_completed": ["Combine"],
+    "max_duration": 60
+  },
+  "_expected": {
+    "feasible": true,
+    "makespan": 17,
+    "_note": "Harvest_A=8, Harvest_B=12 (parallel). Combine waits for the slower one (B=12), so Combine starts at 12 and ends at 17."
+  }
+}
