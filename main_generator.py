@@ -152,6 +152,19 @@ def parse_agents(agents_raw: list) -> tuple[dict, dict]:
     return dict(task_to_agents), agent_travel
 
 
+def dep_reachable(tid: str, task_graph: dict) -> set:
+    """All tasks reachable by following depends_on edges from tid (inclusive)."""
+    visited: set = set()
+    stack = [tid]
+    while stack:
+        t = stack.pop()
+        if t in visited:
+            continue
+        visited.add(t)
+        stack.extend(task_graph.get(t, {}).get('depends_on', []))
+    return visited
+
+
 def collect_required(task_graph: dict, targets: list) -> set:
     """Walk dependency graph backwards from targets."""
     required: set = set()
@@ -171,29 +184,49 @@ def find_subtasks(virtual_id: str, concrete_set: set) -> list:
     return sorted(t for t in concrete_set if t.startswith(virtual_id + '_'))
 
 
-def classify_nodes(required: set, task_to_agents: dict, task_graph: dict) -> tuple[set, set, set]:
+def find_or_optional(task_graph: dict, targets: list, required: set) -> set:
+    """Tasks reachable only via OR-dep edges — not force-required by any AND chain.
+    These become optional interval vars; AddBoolOr enforces at least one per OR group runs."""
+    force = set(t for t in targets if t in required)
+    changed = True
+    while changed:
+        changed = False
+        for tid in list(force):
+            if task_graph.get(tid, {}).get('dependency_type', 'AND') == 'AND':
+                for dep in task_graph.get(tid, {}).get('depends_on', []):
+                    if dep in required and dep not in force:
+                        force.add(dep)
+                        changed = True
+    return required - force
+
+
+def classify_nodes(required: set, task_to_agents: dict, task_graph: dict,
+                   targets: set = None) -> tuple[set, set, set]:
     """
     Returns (concrete, virtual, derived_optional).
 
-    derived_optional: concrete tasks whose OR-deps are all optional subtasks
-    (e.g. Drone_Relay — only needed when HP deliveries happen).
+    derived_optional: concrete tasks whose ALL deps are optional subtasks or
+    other derived-optional tasks (fixed-point expansion supports chains).
+    Target tasks are never classified as derived-optional.
     """
     concrete = required & set(task_to_agents)
     virtual  = required - concrete
 
-    # Build set of all optional subtasks (concrete alternatives of virtual nodes)
     optional_subs: set = set()
     for vid in virtual:
         optional_subs.update(find_subtasks(vid, concrete))
 
-    # A concrete task is "derived-optional" if ALL its deps are optional subtasks
-    # (meaning the task only needs to run when those optional predecessors run).
+    targets_set = targets or set()
     derived_optional: set = set()
-    for tid in concrete - optional_subs:
-        node = task_graph.get(tid, {})
-        deps = node.get('depends_on', [])
-        if deps and all(d in optional_subs for d in deps):
-            derived_optional.add(tid)
+    changed = True
+    while changed:
+        changed = False
+        for tid in concrete - optional_subs - derived_optional - targets_set:
+            node = task_graph.get(tid, {})
+            deps = node.get('depends_on', [])
+            if deps and all(d in optional_subs or d in derived_optional for d in deps):
+                derived_optional.add(tid)
+                changed = True
 
     return concrete, virtual, derived_optional
 
@@ -256,13 +289,15 @@ def generate(data: dict) -> str:
             if tid.startswith(vid + '_'):
                 required.add(tid)
 
-    concrete, virtual, derived_optional = classify_nodes(required, task_to_agents, task_graph)
+    concrete, virtual, derived_optional = classify_nodes(required, task_to_agents, task_graph, set(targets))
 
     # Subtask relationships
     subtask_map: dict = {v: find_subtasks(v, concrete) for v in virtual}
     belongs_to:  dict = {s: v for v, subs in subtask_map.items() for s in subs}
     optional_subs = set(belongs_to)          # subtasks of virtual nodes
-    mandatory_concrete = concrete - optional_subs - derived_optional
+    or_optional   = (find_or_optional(task_graph, targets, required)
+                     & concrete - optional_subs - derived_optional)
+    mandatory_concrete = concrete - optional_subs - derived_optional - or_optional
 
     # ── Travel-time setup ─────────────────────────────────────────────────────
     task_locs   = parse_task_locations(data.get('tasks', []))
@@ -273,7 +308,8 @@ def generate(data: dict) -> str:
     # Interchangeable tasks that have location info — need direction BoolVars
     interchangeable = {tid for tid in required
                        if task_locs.get(tid, {}).get('interchangeable')}
-    dir_vars: dict = {}   # {task_id: python_variable_name_string}
+    dir_vars: dict = {}      # {task_id: python_variable_name_string}
+    agent_presence: dict = {}  # {(task_id, agent_id): varname | None} for pairwise guards
 
     def travel(ag_id: str, from_loc: str, to_loc: str) -> int:
         return dijkstra_travel(agent_graphs.get(ag_id, {}), from_loc, to_loc)
@@ -323,25 +359,25 @@ def generate(data: dict) -> str:
                         agent_paths[(ag_id, src, dst)] = hops
 
     def emit_constraint(w_fn, tid: str, dep: str, t: int, guards: list):
-        """Emit model.Add(ts[tid] >= te[dep] + t) with optional guards."""
+        """Emit model.add(ts[tid] >= te[dep] + t) with optional guards."""
         t_str = f' + {t}' if t > 0 else ''
-        base   = f'    model.Add(ts[{tid!r}] >= te[{dep!r}]{t_str})'
+        base   = f'    model.add(ts[{tid!r}] >= te[{dep!r}]{t_str})'
         if not guards:
             w_fn(base)
         elif len(guards) == 1:
-            w_fn(f'{base}.OnlyEnforceIf({guards[0]})')
+            w_fn(f'{base}.only_enforce_if({guards[0]})')
         else:
-            w_fn(f'{base}.OnlyEnforceIf([{", ".join(guards)}])')
+            w_fn(f'{base}.only_enforce_if([{", ".join(guards)}])')
 
     def emit_ts_lb(w_fn, tid: str, lb: int, guards: list):
-        """Emit model.Add(ts[tid] >= lb) with optional guards."""
-        base = f'    model.Add(ts[{tid!r}] >= {lb})'
+        """Emit model.add(ts[tid] >= lb) with optional guards."""
+        base = f'    model.add(ts[{tid!r}] >= {lb})'
         if not guards:
             w_fn(base)
         elif len(guards) == 1:
-            w_fn(f'{base}.OnlyEnforceIf({guards[0]})')
+            w_fn(f'{base}.only_enforce_if({guards[0]})')
         else:
-            w_fn(f'{base}.OnlyEnforceIf([{", ".join(guards)}])')
+            w_fn(f'{base}.only_enforce_if([{", ".join(guards)}])')
 
     # ── Emit code ─────────────────────────────────────────────────────────────
     L: list = []
@@ -356,6 +392,7 @@ def generate(data: dict) -> str:
     w(f'# Max duration  : {max_dur} min')
     w(f'# Virtual nodes : {sorted(virtual)}  (abstract; resolved by alternatives)')
     w(f'# Derived-opt.  : {sorted(derived_optional)}  (run only when triggered)')
+    w(f'# OR-optional   : {sorted(or_optional)}  (at least one per OR-dep group must run)')
     w('# ─────────────────────────────────────────────────────────────────────')
     w()
     w()
@@ -364,9 +401,9 @@ def generate(data: dict) -> str:
     w(f'    horizon = {max_dur}')
     w()
     w('    def make_iv(name, dur):')
-    w('        s = model.NewIntVar(0, horizon, name + "_s")')
-    w('        e = model.NewIntVar(0, horizon, name + "_e")')
-    w('        model.Add(e == s + dur)')
+    w('        s = model.new_int_var(0, horizon, name + "_s")')
+    w('        e = model.new_int_var(0, horizon, name + "_e")')
+    w('        model.add(e == s + dur)')
     w('        return s, e')
     w()
     w('    ts  = {}   # ts[task_id]              -> start IntVar')
@@ -387,25 +424,27 @@ def generate(data: dict) -> str:
             w(f'    pr[{tid!r}]  = 1')
             w(f'    asg[({tid!r}, {agent_id!r})] = 1')
             w(f'    agent_ivs[{agent_id!r}].append(')
-            w(f'        model.NewIntervalVar(ts[{tid!r}], {dur}, te[{tid!r}], {(tid+"_iv")!r}))')
+            w(f'        model.new_interval_var(ts[{tid!r}], {dur}, te[{tid!r}], {(tid+"_iv")!r}))')
+            agent_presence[(tid, agent_id)] = None  # always present, no guard
         else:
             agent_names = [a for a, _ in capable]
             w(f'    # {tid}  (agent choice: {agent_names})')
-            w(f'    ts[{tid!r}] = model.NewIntVar(0, horizon, {(tid+"_s")!r})')
-            w(f'    te[{tid!r}] = model.NewIntVar(0, horizon, {(tid+"_e")!r})')
+            w(f'    ts[{tid!r}] = model.new_int_var(0, horizon, {(tid+"_s")!r})')
+            w(f'    te[{tid!r}] = model.new_int_var(0, horizon, {(tid+"_e")!r})')
             w(f'    pr[{tid!r}]  = 1')
             presences = []
             for agent_id, dur in capable:
                 p = f'_p_{safe(tid)}_{safe(agent_id)}'
-                w(f'    {p} = model.NewBoolVar({(tid+"_"+agent_id)!r})')
+                w(f'    {p} = model.new_bool_var({(tid+"_"+agent_id)!r})')
                 w(f'    asg[({tid!r}, {agent_id!r})] = {p}')
                 w(f'    _s, _e = make_iv({(tid+"_"+agent_id)!r}, {dur})')
-                w(f'    model.Add(ts[{tid!r}] == _s).OnlyEnforceIf({p})')
-                w(f'    model.Add(te[{tid!r}] == _e).OnlyEnforceIf({p})')
+                w(f'    model.add(ts[{tid!r}] == _s).only_enforce_if({p})')
+                w(f'    model.add(te[{tid!r}] == _e).only_enforce_if({p})')
                 w(f'    agent_ivs[{agent_id!r}].append(')
-                w(f'        model.NewOptionalIntervalVar(_s, {dur}, _e, {p}, {(tid+"_"+agent_id+"_iv")!r}))')
+                w(f'        model.new_optional_interval_var(_s, {dur}, _e, {p}, {(tid+"_"+agent_id+"_iv")!r}))')
                 presences.append(p)
-            w(f'    model.AddExactlyOne([{", ".join(presences)}])')
+                agent_presence[(tid, agent_id)] = p
+            w(f'    model.add_exactly_one([{", ".join(presences)}])')
         w()
 
     # ── Optional subtasks (concrete alternatives of virtual nodes) ─────────────
@@ -415,23 +454,77 @@ def generate(data: dict) -> str:
         agent_id, dur = capable[0]   # always single-agent for this problem
         p = f'_p_{safe(tid)}'
         w(f'    # {tid}  ({agent_id}, {dur} min) — optional alternative')
-        w(f'    {p} = model.NewBoolVar({tid!r})')
+        w(f'    {p} = model.new_bool_var({tid!r})')
         w(f'    pr[{tid!r}]  = {p}')
         w(f'    asg[({tid!r}, {agent_id!r})] = {p}')
         w(f'    ts[{tid!r}], te[{tid!r}] = make_iv({tid!r}, {dur})')
         w(f'    agent_ivs[{agent_id!r}].append(')
-        w(f'        model.NewOptionalIntervalVar(ts[{tid!r}], {dur}, te[{tid!r}], {p}, {(tid+"_iv")!r}))')
+        w(f'        model.new_optional_interval_var(ts[{tid!r}], {dur}, te[{tid!r}], {p}, {(tid+"_iv")!r}))')
+        agent_presence[(tid, agent_id)] = p
         w()
+
+    # ── OR-optional tasks ─────────────────────────────────────────────────────
+    if or_optional:
+        w('    # ── OR-optional tasks (at least one per OR-dep group must run) ───────')
+        for tid in sorted(or_optional):
+            capable = task_to_agents[tid]
+            p = f'_p_{safe(tid)}'
+            if len(capable) == 1:
+                agent_id, dur = capable[0]
+                w(f'    # {tid}  ({agent_id}, {dur} min) — OR-optional')
+                w(f'    {p} = model.new_bool_var({tid!r})')
+                w(f'    pr[{tid!r}]  = {p}')
+                w(f'    asg[({tid!r}, {agent_id!r})] = {p}')
+                w(f'    ts[{tid!r}], te[{tid!r}] = make_iv({tid!r}, {dur})')
+                w(f'    agent_ivs[{agent_id!r}].append(')
+                w(f'        model.new_optional_interval_var(ts[{tid!r}], {dur}, te[{tid!r}], {p}, {(tid+"_iv")!r}))')
+                agent_presence[(tid, agent_id)] = p
+            else:
+                agent_names = [a for a, _ in capable]
+                w(f'    # {tid}  (agent choice: {agent_names}) — OR-optional')
+                w(f'    ts[{tid!r}] = model.new_int_var(0, horizon, {(tid+"_s")!r})')
+                w(f'    te[{tid!r}] = model.new_int_var(0, horizon, {(tid+"_e")!r})')
+                w(f'    {p} = model.new_bool_var({tid!r})')
+                w(f'    pr[{tid!r}]  = {p}')
+                per_agent_ps = []
+                for agent_id, dur in capable:
+                    pa = f'_p_{safe(tid)}_{safe(agent_id)}'
+                    per_agent_ps.append(pa)
+                    w(f'    {pa} = model.new_bool_var({(tid+"_"+agent_id)!r})')
+                    w(f'    asg[({tid!r}, {agent_id!r})] = {pa}')
+                    w(f'    _s, _e = make_iv({(tid+"_"+agent_id)!r}, {dur})')
+                    w(f'    model.add(ts[{tid!r}] == _s).only_enforce_if({pa})')
+                    w(f'    model.add(te[{tid!r}] == _e).only_enforce_if({pa})')
+                    w(f'    agent_ivs[{agent_id!r}].append(')
+                    w(f'        model.new_optional_interval_var(_s, {dur}, _e, {pa}, {(tid+"_"+agent_id+"_iv")!r}))')
+                    agent_presence[(tid, agent_id)] = pa
+                w(f'    model.add_at_most_one([{", ".join(per_agent_ps)}])')
+                for pa in per_agent_ps:
+                    w(f'    model.add_implication({pa}, {p})')
+                w(f'    model.add_bool_or([{", ".join(per_agent_ps)}, ~{p}])')
+            w()
+        # For each successor with OR deps, enforce at least one dep runs
+        for tid_s, node_s in task_graph.items():
+            if tid_s not in required or node_s.get('dependency_type', 'AND') != 'OR':
+                continue
+            or_opt_deps = [d for d in node_s.get('depends_on', []) if d in or_optional]
+            mandatory_deps = [d for d in node_s.get('depends_on', [])
+                              if d in required and d not in or_optional]
+            if or_opt_deps and not mandatory_deps:
+                presences = [f'_p_{safe(d)}' for d in or_opt_deps]
+                w(f'    # At least one OR-dep of {tid_s!r} must run')
+                w(f'    model.add_bool_or([{", ".join(presences)}])')
+                w()
 
     # ── Direction BoolVars for interchangeable tasks ──────────────────────────
     # Must be emitted before dep generation (dir_vars is referenced there).
-    interch_in_model = (mandatory_concrete | optional_subs) & interchangeable
+    interch_in_model = (mandatory_concrete | optional_subs | or_optional) & interchangeable
     if interch_in_model:
         w('    # ── Direction vars (True = start→end, False = end→start) ──────────')
         for tid in sorted(interch_in_model):
             vname = f'_dir_{safe(tid)}'
             dir_vars[tid] = vname
-            w(f'    {vname} = model.NewBoolVar({(tid + "_dir")!r})')
+            w(f'    {vname} = model.new_bool_var({(tid + "_dir")!r})')
         w()
 
     # ── Virtual nodes (bind canonical vars to active alternative) ─────────────
@@ -443,16 +536,16 @@ def generate(data: dict) -> str:
                 w(f'    # WARNING: {vid!r} — no concrete alternatives found, skipping')
                 continue
             w(f'    # {vid}  → exactly one of {subs}')
-            w(f'    ts[{vid!r}] = model.NewIntVar(0, horizon, {(vid+"_s")!r})')
-            w(f'    te[{vid!r}] = model.NewIntVar(0, horizon, {(vid+"_e")!r})')
-            w(f'    pr[{vid!r}]  = model.NewBoolVar({(vid+"_active")!r})')
+            w(f'    ts[{vid!r}] = model.new_int_var(0, horizon, {(vid+"_s")!r})')
+            w(f'    te[{vid!r}] = model.new_int_var(0, horizon, {(vid+"_e")!r})')
+            w(f'    pr[{vid!r}]  = model.new_bool_var({(vid+"_active")!r})')
             plist = [f'_p_{safe(s)}' for s in subs]
-            w(f'    model.AddExactlyOne([{", ".join(plist)}])')
-            w(f'    model.Add(pr[{vid!r}] == 1)')   # virtual node is always "done" (one alt runs)
+            w(f'    model.add_exactly_one([{", ".join(plist)}])')
+            w(f'    model.add(pr[{vid!r}] == 1)')   # virtual node is always "done" (one alt runs)
             for st in subs:
                 p = f'_p_{safe(st)}'
-                w(f'    model.Add(ts[{vid!r}] == ts[{st!r}]).OnlyEnforceIf({p})')
-                w(f'    model.Add(te[{vid!r}] == te[{st!r}]).OnlyEnforceIf({p})')
+                w(f'    model.add(ts[{vid!r}] == ts[{st!r}]).OnlyEnforceIf({p})')
+                w(f'    model.add(te[{vid!r}] == te[{st!r}]).OnlyEnforceIf({p})')
             w()
 
     # ── Derived-optional tasks (e.g. Drone_Relay) ─────────────────────────────
@@ -463,21 +556,25 @@ def generate(data: dict) -> str:
             agent_id, dur = capable[0]
             node = task_graph.get(tid, {})
             deps = node.get('depends_on', [])
-            dep_presences = [f'_p_{safe(d)}' for d in deps]
             p = f'_p_{safe(tid)}'
-            w(f'    # {tid}  ({agent_id}, {dur} min) — active iff any of {deps} is active')
-            w(f'    {p} = model.NewBoolVar({tid!r})')
+            # Deps that are optional subtasks trigger this task (AddImplication).
+            # Deps that are other derived-optional tasks only establish ordering
+            # (handled in the Dependencies section — no implication here).
+            trigger_deps = [d for d in deps if d in optional_subs]
+            trigger_presences = [f'_p_{safe(d)}' for d in trigger_deps]
+            w(f'    # {tid}  ({agent_id}, {dur} min) — active iff any of {trigger_deps} is active')
+            w(f'    {p} = model.new_bool_var({tid!r})')
             w(f'    pr[{tid!r}]  = {p}')
             w(f'    asg[({tid!r}, {agent_id!r})] = {p}')
             w(f'    ts[{tid!r}], te[{tid!r}] = make_iv({tid!r}, {dur})')
             w(f'    agent_ivs[{agent_id!r}].append(')
-            w(f'        model.NewOptionalIntervalVar(ts[{tid!r}], {dur}, te[{tid!r}], {p}, {(tid+"_iv")!r}))')
-            # presence ↔ (dep1 OR dep2 OR ...)
-            for dp in dep_presences:
-                w(f'    model.AddImplication({dp}, {p})  # if {dp} is active, {tid} must run')
-            # If {tid} runs, at least one dep must be active (NOT presence → impossible, so: presence → any dep)
-            w(f'    model.AddBoolOr([{p}.Not(), {", ".join(dep_presences)}])')
-            w(f'    # ^ {tid} only runs if at least one of {[d for d in deps]} is active')
+            w(f'        model.new_optional_interval_var(ts[{tid!r}], {dur}, te[{tid!r}], {p}, {(tid+"_iv")!r}))')
+            for dp in trigger_presences:
+                w(f'    model.add_implication({dp}, {p})')
+            if trigger_presences:
+                w(f'    model.add_bool_or([~{p}, {", ".join(trigger_presences)}])')
+                w(f'    # ^ {tid} only runs if at least one of {trigger_deps} is active')
+            agent_presence[(tid, agent_id)] = p
             w()
 
     # ── Initial positioning ───────────────────────────────────────────────────
@@ -511,13 +608,13 @@ def generate(data: dict) -> str:
             tlocs = task_locs.get(tid, {})
             if not tlocs.get('start'):
                 continue
-            is_root_opt = tid in optional_subs or tid in derived_optional
+            is_root_opt = tid in optional_subs or tid in derived_optional or tid in or_optional
             p_root = f'_p_{safe(tid)}'
             if tlocs.get('interchangeable') and tid in dir_vars:
                 dir_v = dir_vars[tid]
                 for t_val, g_dir in [
                     (dijkstra_travel(ag_graph, init_loc, tlocs['start']), dir_v),
-                    (dijkstra_travel(ag_graph, init_loc, tlocs['end']),   f'{dir_v}.Not()'),
+                    (dijkstra_travel(ag_graph, init_loc, tlocs['end']),   f'~{dir_v}'),
                 ]:
                     if t_val > 0:
                         g = ([p_root, g_dir] if is_root_opt else [g_dir])
@@ -535,6 +632,8 @@ def generate(data: dict) -> str:
         w()
 
     # ── Dependencies ──────────────────────────────────────────────────────────
+    # Track ordering BoolVars per OR-optional dep for reverse implications below.
+    or_dep_bvars: dict = defaultdict(list)   # {or_optional_dep_id: [bv_varname, ...]}
     w('    # ── Dependencies ──────────────────────────────────────────────────')
     for tid, node in task_graph.items():
         if tid not in required:
@@ -543,7 +642,7 @@ def generate(data: dict) -> str:
         if not deps:
             continue
         dep_type = node.get('dependency_type', 'AND')
-        is_opt   = tid in optional_subs or tid in derived_optional
+        is_opt   = tid in optional_subs or tid in derived_optional or tid in or_optional
         p_tid    = f'pr[{tid!r}]' if not is_opt else f'_p_{safe(tid)}'
 
         if dep_type == 'AND':
@@ -552,7 +651,7 @@ def generate(data: dict) -> str:
             tid_interch = tid_locs.get('interchangeable', False) and tid in dir_vars
 
             for dep in deps:
-                dep_is_opt = dep in optional_subs or dep in derived_optional
+                dep_is_opt = dep in optional_subs or dep in derived_optional or dep in or_optional
                 dep_p      = f'_p_{safe(dep)}'
                 dep_locs   = task_locs.get(dep, {})
                 dep_interch = dep_locs.get('interchangeable', False) and dep in dir_vars
@@ -571,7 +670,7 @@ def generate(data: dict) -> str:
                             dir_t = dir_vars[tid]
                             for to_loc, g_dir in [
                                 (tid_locs['start'], dir_t),
-                                (tid_locs['end'],   f'{dir_t}.Not()'),
+                                (tid_locs['end'],   f'~{dir_t}'),
                             ]:
                                 t_val = travel(ag, sub_end, to_loc) if ag else 0
                                 emit_constraint(w, tid, sub, t_val,
@@ -587,11 +686,11 @@ def generate(data: dict) -> str:
                         ag = ca[0] if ca else None
                         for from_loc, g_d in [
                             (dep_locs['end'],   dir_d),
-                            (dep_locs['start'], f'{dir_d}.Not()'),
+                            (dep_locs['start'], f'~{dir_d}'),
                         ]:
                             for to_loc, g_t in [
                                 (tid_locs['start'], dir_t),
-                                (tid_locs['end'],   f'{dir_t}.Not()'),
+                                (tid_locs['end'],   f'~{dir_t}'),
                             ]:
                                 t_val = travel(ag, from_loc, to_loc) if ag else 0
                                 emit_constraint(w, tid, dep, t_val, base_g + [g_d, g_t])
@@ -601,7 +700,7 @@ def generate(data: dict) -> str:
                         to_loc = tid_locs.get('start', '')
                         for from_loc, g_d in [
                             (dep_locs['end'],   dir_d),
-                            (dep_locs['start'], f'{dir_d}.Not()'),
+                            (dep_locs['start'], f'~{dir_d}'),
                         ]:
                             t_val = travel(ag, from_loc, to_loc) if ag else 0
                             emit_constraint(w, tid, dep, t_val, base_g + [g_d])
@@ -614,7 +713,7 @@ def generate(data: dict) -> str:
                         dir_t = dir_vars[tid]
                         for to_loc, g_t in [
                             (tid_locs['start'], dir_t),
-                            (tid_locs['end'],   f'{dir_t}.Not()'),
+                            (tid_locs['end'],   f'~{dir_t}'),
                         ]:
                             t_val = travel(ag, from_loc, to_loc) if ag else 0
                             emit_constraint(w, tid, dep, t_val, base_g + [g_t])
@@ -623,58 +722,164 @@ def generate(data: dict) -> str:
                         emit_constraint(w, tid, dep, t_val, base_g)
         else:
             bvars = []
+            _tid_locs_or    = task_locs.get(tid, {})
+            _tid_interch_or = _tid_locs_or.get('interchangeable', False) and tid in dir_vars
             for dep in deps:
                 bv = f'_dep_{safe(tid)}_{safe(dep)}'
-                dep_is_opt = dep in optional_subs or dep in derived_optional
+                dep_is_opt = dep in optional_subs or dep in derived_optional or dep in or_optional
                 dep_p = f'_p_{safe(dep)}'
-                w(f'    {bv} = model.NewBoolVar({(tid+"_after_"+dep)!r})')
-                if is_opt:
-                    w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}]).OnlyEnforceIf([{bv}, {p_tid}])')
-                else:
-                    w(f'    model.Add(ts[{tid!r}] >= te[{dep!r}]).OnlyEnforceIf({bv})')
+                _dep_locs_or    = task_locs.get(dep, {})
+                _dep_interch_or = _dep_locs_or.get('interchangeable', False) and dep in dir_vars
+                ca = common_agents(dep, tid, task_to_agents)
+                ag = ca[0] if ca else None
+                w(f'    {bv} = model.new_bool_var({(tid+"_after_"+dep)!r})')
+                base_g = [bv] + ([p_tid] if is_opt else [])
+                dep_ends = ([(_dep_locs_or.get('end', ''),   dir_vars[dep]),
+                              (_dep_locs_or.get('start', ''), f'~{dir_vars[dep]}')]
+                             if _dep_interch_or else
+                             [(_dep_locs_or.get('end', ''), None)])
+                tid_starts = ([(_tid_locs_or.get('start', ''), dir_vars[tid]),
+                                (_tid_locs_or.get('end', ''),   f'~{dir_vars[tid]}')]
+                               if _tid_interch_or else
+                               [(_tid_locs_or.get('start', ''), None)])
+                for from_loc, g_d in dep_ends:
+                    for to_loc, g_t in tid_starts:
+                        t_val = travel(ag, from_loc, to_loc) if ag else 0
+                        guards = base_g + [x for x in [g_d, g_t] if x]
+                        emit_constraint(w, tid, dep, t_val, guards)
                 if dep_is_opt:
                     # Guard: solver may only "wait for dep" when dep is actually active.
                     # Without this, an inactive dep's ts/te=0 trivially satisfies the constraint.
-                    w(f'    model.AddImplication({bv}, {dep_p})')
+                    w(f'    model.add_implication({bv}, {dep_p})')
+                if dep in or_optional:
+                    or_dep_bvars[dep].append(bv)
                 bvars.append(bv)
             if is_opt:
-                w(f'    model.AddBoolOr([{", ".join(bvars)}, {p_tid}.Not()])')
+                w(f'    model.add_bool_or([{", ".join(bvars)}, ~{p_tid}])')
                 w(f'    # ^ {tid}: when active, must start after at least one ACTIVE dep in {deps}')
             else:
-                w(f'    model.AddBoolOr([{", ".join(bvars)}])')
+                w(f'    model.add_bool_or([{", ".join(bvars)}])')
                 w(f'    # ^ {tid} starts after ANY active dep in {deps}')
+    # Reverse implication: an OR-optional dep only runs if chosen by at least one successor.
+    if or_dep_bvars:
+        w('    # OR-optional deps only run when chosen by a successor')
+        for dep_id, bv_list in sorted(or_dep_bvars.items()):
+            dep_p = f'_p_{safe(dep_id)}'
+            if len(bv_list) == 1:
+                w(f'    model.add_implication({dep_p}, {bv_list[0]})')
+            else:
+                w(f'    model.add_bool_or([{", ".join(bv_list)}, ~{dep_p}])')
+        w()
     w()
+
+    # ── Pairwise travel for same-agent tasks with no dep ordering ─────────────
+    # When two tasks of the same agent have no dep chain, the no-overlap
+    # constraint prevents overlap but doesn't add travel time.  We add an
+    # ordering BoolVar + conditional travel constraints for every such pair.
+    # Optional tasks get an additional presence guard so the constraint only
+    # fires when both tasks are actually active.
+    reach_cache: dict = {}
+    def cached_reach(tid):
+        if tid not in reach_cache:
+            reach_cache[tid] = dep_reachable(tid, task_graph)
+        return reach_cache[tid]
+
+    # Presence expression: None = always present (mandatory), else var-name string.
+    # When ag_id is given, returns the per-agent BoolVar name (e.g. multi-agent tasks).
+    def presence_expr(tid, ag_id=None):
+        if ag_id is not None and (tid, ag_id) in agent_presence:
+            return agent_presence[(tid, ag_id)]
+        if tid in optional_subs or tid in derived_optional or tid in or_optional:
+            return f'_p_{safe(tid)}'
+        return None  # mandatory
+
+    pairwise_lines: list = []
+    def wp(s): pairwise_lines.append(s)
+
+    all_agent_tasks = optional_subs | derived_optional | mandatory_concrete | or_optional
+    for ag_id in agent_ids:
+        ag_tasks = sorted([
+            tid for tid in all_agent_tasks
+            if any(a == ag_id for a, _ in task_to_agents.get(tid, []))
+        ])
+        for i, tid_a in enumerate(ag_tasks):
+            for tid_b in ag_tasks[i + 1:]:
+                if tid_b in cached_reach(tid_a) or tid_a in cached_reach(tid_b):
+                    continue  # already ordered through dep chain
+                locs_a = task_locs.get(tid_a, {})
+                locs_b = task_locs.get(tid_b, {})
+                dv_a = dir_vars.get(tid_a)
+                dv_b = dir_vars.get(tid_b)
+                a_ends   = [(locs_a.get('end',''),   dv_a),
+                            (locs_a.get('start',''), f'~{dv_a}')] if dv_a else \
+                           [(locs_a.get('end',''),   None)]
+                b_starts = [(locs_b.get('start',''), dv_b),
+                            (locs_b.get('end',''),   f'~{dv_b}')] if dv_b else \
+                           [(locs_b.get('start',''), None)]
+                b_ends   = [(locs_b.get('end',''),   dv_b),
+                            (locs_b.get('start',''), f'~{dv_b}')] if dv_b else \
+                           [(locs_b.get('end',''),   None)]
+                a_starts = [(locs_a.get('start',''), dv_a),
+                            (locs_a.get('end',''),   f'~{dv_a}')] if dv_a else \
+                           [(locs_a.get('start',''), None)]
+                any_t = any(travel(ag_id, ae, bs) > 0
+                            for ae, _ in a_ends for bs, _ in b_starts) or \
+                        any(travel(ag_id, be, as_) > 0
+                            for be, _ in b_ends for as_, _ in a_starts)
+                if not any_t:
+                    continue
+                ord_v = f'_ord_{safe(tid_a)}_{safe(tid_b)}'
+                p_a = presence_expr(tid_a, ag_id)
+                p_b = presence_expr(tid_b, ag_id)
+                wp(f'    # pairwise travel: {tid_a} ↔ {tid_b} ({ag_id})')
+                wp(f'    {ord_v} = model.new_bool_var({(safe(tid_a)+"_before_"+safe(tid_b))!r})')
+                for ae, ga in a_ends:
+                    for bs, gb in b_starts:
+                        t = travel(ag_id, ae, bs)
+                        g = [ord_v] + [x for x in [ga, gb, p_a, p_b] if x]
+                        emit_constraint(wp, tid_b, tid_a, t, g)
+                for be, gb in b_ends:
+                    for as_, ga in a_starts:
+                        t = travel(ag_id, be, as_)
+                        g = [f'~{ord_v}'] + [x for x in [gb, ga, p_a, p_b] if x]
+                        emit_constraint(wp, tid_a, tid_b, t, g)
+                wp('')
+
+    if pairwise_lines:
+        w('    # ── Pairwise travel (same-agent, no dep ordering) ────────────────')
+        for line in pairwise_lines:
+            w(line)
 
     # ── Agent no-overlap ──────────────────────────────────────────────────────
     w('    # ── Agent no-overlap ──────────────────────────────────────────────')
     w('    for agent_id, ivs in agent_ivs.items():')
     w('        if len(ivs) > 1:')
-    w('            model.AddNoOverlap(ivs)')
+    w('            model.add_no_overlap(ivs)')
     w()
 
     # ── Objective ─────────────────────────────────────────────────────────────
     w('    # ── Objective: minimise completion of target tasks ────────────────')
     valid_targets = [t for t in targets if t in required]
     if len(valid_targets) == 1:
-        w(f'    model.Minimize(te[{valid_targets[0]!r}])')
+        w(f'    model.minimize(te[{valid_targets[0]!r}])')
     elif valid_targets:
-        w('    makespan = model.NewIntVar(0, horizon, "makespan")')
-        w(f'    model.AddMaxEquality(makespan, [{", ".join(f"te[{t!r}]" for t in valid_targets)}])')
-        w('    model.Minimize(makespan)')
+        w('    makespan = model.new_int_var(0, horizon, "makespan")')
+        w(f'    model.add_max_equality(makespan, [{", ".join(f"te[{t!r}]" for t in valid_targets)}])')
+        w('    model.minimize(makespan)')
     w()
 
     # ── Solve ─────────────────────────────────────────────────────────────────
     w('    # ── Solve ─────────────────────────────────────────────────────────')
     w('    solver = cp_model.CpSolver()')
     w('    solver.parameters.num_search_workers = 4')
-    w('    status = solver.Solve(model)')
+    w('    status = solver.solve(model)')
     w()
     w('    if status not in [cp_model.OPTIMAL, cp_model.FEASIBLE]:')
     w('        print("No solution found within constraints.")')
     w('        return')
     w()
-    w('    v = solver.Value')
-    w(f'    print(f"Solution — makespan: {{int(solver.ObjectiveValue())}} min\\n")')
+    w('    v = solver.value')
+    w(f'    print(f"Solution — makespan: {{int(solver.objective_value)}} min\\n")')
     w()
     locs_literal = '{' + ', '.join(
         f'{tid!r}: ({info["start"]!r}, {info["end"]!r})'
@@ -721,6 +926,7 @@ def generate(data: dict) -> str:
     w('            if dv is not None and not v(dv):')
     w('                sl, el = el, sl  # reversed direction')
     w('            if s > prev_e and prev_loc != sl:')
+    # hops is a list of (from, to, duration) tuples for multi-hop travel; if not present, fallback to single-hop travel.
     w('                hops = _agent_paths.get((agent_id, prev_loc, sl))')
     w('                if hops:')
     w('                    t = prev_e')
@@ -730,8 +936,8 @@ def generate(data: dict) -> str:
     w('                else:')
     w('                    print(f"  [{prev_e:02d}→{s:02d}] Travelling  ({prev_loc} → {sl})")')
     w('            intra = _task_intra.get(tid)')
-    w('            intra_str = f" [travel {intra[0]}={intra[1]}]" if intra else ""')
-    w('            print(f"  [{s:02d}→{e:02d}] {tid}{intra_str}  ({sl} → {el})")')
+    w('            intra_str = f" [task required distance {intra[1]}]" if intra else ""')
+    w('            print(f"  [{s:02d}→{e:02d}] {tid} ({sl} → {el}) {intra_str}")')
     w('            prev_e, prev_loc = e, el')
     w('        print()')
     w()

@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Planning Problem Editor</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; background: #0f1117; color: #e2e8f0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── Header ── */
+header { background: #1a1f2e; border-bottom: 1px solid #2d3748; padding: 8px 14px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+header h1 { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-right: auto; letter-spacing: -0.01em; }
+header h1 span { color: #3b82f6; }
+.btn { padding: 5px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 5px; transition: opacity .15s; white-space: nowrap; }
+.btn:hover { opacity: .82; }
+.btn-primary   { background: #3b82f6; color: #fff; }
+.btn-success   { background: #10b981; color: #fff; }
+.btn-secondary { background: #334155; color: #cbd5e1; }
+.btn-danger    { background: #ef4444; color: #fff; }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+.divider { width: 1px; height: 20px; background: #2d3748; margin: 0 2px; }
+
+/* ── Layout ── */
+main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Sidebar ── */
+aside { width: 310px; background: #1a1f2e; border-right: 1px solid #2d3748; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+.tabs { display: flex; background: #12161f; border-bottom: 1px solid #2d3748; flex-shrink: 0; }
+.tab { padding: 8px 0; flex: 1; text-align: center; cursor: pointer; font-size: 10px; font-weight: 600; color: #64748b; border-bottom: 2px solid transparent; text-transform: uppercase; letter-spacing: .04em; transition: all .15s; }
+.tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+.tab:hover:not(.active) { color: #94a3b8; }
+.panel { flex: 1; overflow-y: auto; padding: 10px; display: none; flex-direction: column; gap: 8px; }
+.panel.active { display: flex; }
+
+/* ── Cards ── */
+.card { background: #212840; border: 1px solid #2d3748; border-radius: 8px; padding: 10px; }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.card-title { font-weight: 600; font-size: 12px; color: #e2e8f0; }
+.card-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+.card-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; background: #2d3748; color: #94a3b8; margin: 1px; }
+.tag-blue  { background: #1e3a5f; color: #60a5fa; }
+.tag-green { background: #14432a; color: #34d399; }
+.tag-amber { background: #451f08; color: #fb923c; }
+
+/* ── Add forms ── */
+.add-form { background: #1a2540; border: 1px solid #3b82f6; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+.add-form h3 { font-size: 11px; font-weight: 600; color: #60a5fa; text-transform: uppercase; letter-spacing: .04em; }
+.row { display: flex; gap: 6px; }
+.fg { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.fg label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .04em; }
+.fg input, .fg select, .fg textarea {
+  background: #0f1117; border: 1px solid #374151; border-radius: 4px;
+  padding: 5px 7px; color: #e2e8f0; font-size: 12px; width: 100%; font-family: inherit;
+}
+.fg input:focus, .fg select:focus, .fg textarea:focus { outline: none; border-color: #3b82f6; }
+.fg textarea { resize: vertical; min-height: 44px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 5px; }
+select option { background: #1a1f2e; }
+.checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+.checkbox-row input[type=checkbox] { accent-color: #3b82f6; }
+
+/* ── Section header ── */
+.sec-hdr { display: flex; align-items: center; justify-content: space-between; }
+.sec-title { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+
+/* ── Canvas area ── */
+.canvas-area { flex: 1; position: relative; overflow: hidden; }
+#map-canvas { display: block; cursor: default; }
+.canvas-toolbar { position: absolute; top: 10px; left: 10px; display: flex; gap: 5px; background: rgba(255,255,255,.95); border-radius: 8px; padding: 5px; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+.tool-btn { padding: 5px 10px; border: 1px solid #e2e8f0; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 500; background: white; color: #374151; transition: all .15s; }
+.tool-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+.tool-btn:hover:not(.active) { background: #f1f5f9; }
+.canvas-hint { position: absolute; bottom: 10px; left: 10px; background: rgba(255,255,255,.9); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #64748b; }
+.legend { position: absolute; bottom: 10px; right: 10px; background: rgba(255,255,255,.95); border-radius: 8px; padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.12); font-size: 10px; color: #374151; }
+.legend-item { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.legend-item:last-child { margin-bottom: 0; }
+.leg-circle { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── Modal ── */
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center; z-index: 200; }
+.modal-bg.open { display: flex; }
+.modal { background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 20px; width: 500px; max-height: 85vh; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.modal h2 { font-size: 14px; font-weight: 700; color: #e2e8f0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.sub-list { display: flex; flex-direction: column; gap: 5px; }
+.sub-item { background: #212840; border: 1px solid #2d3748; border-radius: 6px; padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
+.sub-item-content { flex: 1; }
+.sub-add { background: #0f1117; border: 1px dashed #374151; border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #64748b; cursor: pointer; text-align: center; }
+.sub-add:hover { border-color: #3b82f6; color: #60a5fa; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+
+/* ── Tooltip ── */
+#tooltip { position: fixed; background: rgba(15,17,23,.92); color: #e2e8f0; padding: 6px 10px; border-radius: 6px; font-size: 11px; pointer-events: none; display: none; z-index: 100; max-width: 220px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<div id="tooltip"></div>
+
+<header>
+  <h1>Planning <span>Problem Editor</span></h1>
+  <input type="file" id="bg-upload"   hidden accept="image/*">
+  <input type="file" id="json-import" hidden accept=".json">
+  <button class="btn btn-secondary" onclick="document.getElementById('bg-upload').click()">🖼 Background</button>
+  <div class="divider"></div>
+  <button class="btn btn-secondary" onclick="document.getElementById('json-import').click()">📂 Import JSON</button>
+  <button class="btn btn-success"   onclick="exportJSON()">💾 Export JSON</button>
+</header>
+
+<main>
+  <aside>
+    <div class="tabs">
+      <div class="tab active"  data-tab="locations"   onclick="switchTab('locations')">Locs</div>
+      <div class="tab"         data-tab="paths"        onclick="switchTab('paths')">Paths</div>
+      <div class="tab"         data-tab="tasks"        onclick="switchTab('tasks')">Tasks</div>
+      <div class="tab"         data-tab="agents"       onclick="switchTab('agents')">Agents</div>
+      <div class="tab"         data-tab="constraints"  onclick="switchTab('constraints')">Config</div>
+    </div>
+
+    <!-- LOCATIONS -->
+    <div id="panel-locations" class="panel active">
+      <div class="add-form" id="form-loc">
+        <h3>Add Location</h3>
+        <div class="row">
+          <div class="fg"><label>ID</label><input id="loc-id" placeholder="l8"></div>
+          <div class="fg"><label>Description</label><input id="loc-desc" placeholder="Field corner"></div>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" onclick="addLocation()">Add</button>
+        </div>
+      </div>
+      <div id="loc-list"></div>
+    </div>
+
+    <!-- PATHS -->
+    <div id="panel-paths" class="panel">
+      <div class="add-form" id="form-path">
+        <h3>Add Path</h3>
+        <div class="row">
+          <div class="fg"><label>ID</label><input id="path-id" placeholder="l1l8"></div>
+          <div class="fg"><label>Distance</label><input id="path-dist" type="number" min="0" placeholder="1"></div>
+        </div>
+        <div class="row">
+          <div class="fg"><label>From</label><select id="path-from"></select></div>
+          <div class="fg"><label>To</label><select id="path-to"></select></div>
+        </div>
+        <div class="fg"><label>Description</label><input id="path-desc" placeholder="Path from l1 to l8"></div>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" onclick="addPath()">Add</button>
+        </div>
+      </div>
+      <div id="path-list"></div>
+    </div>
+
+    <!-- TASKS -->
+    <div id="panel-tasks" class="panel">
+      <div class="add-form">
+        <h3>Add Task</h3>
+        <div class="fg"><label>ID</label><input id="task-id" placeholder="Harvest_Row3"></div>
+        <div class="row">
+          <div class="fg"><label>Start Location</label><select id="task-start"></select></div>
+          <div class="fg"><label>End Location</label><select id="task-end"></select></div>
+        </div>
+        <div class="fg"><label>Description</label><input id="task-desc" placeholder="Optional description"></div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="task-interchangeable">
+          <label for="task-interchangeable">Start/end interchangeable</label>
+        </div>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" onclick="addTask()">Add</button>
+        </div>
+      </div>
+
+      <div class="sec-hdr" style="margin-top:4px">
+        <span class="sec-title">Task Graph (Dependencies)</span>
+        <button class="btn btn-secondary btn-sm" onclick="openTaskGraphModal()">Edit</button>
+      </div>
+      <div id="task-list"></div>
+    </div>
+
+    <!-- AGENTS -->
+    <div id="panel-agents" class="panel">
+      <div class="add-form">
+        <h3>Add Agent</h3>
+        <div class="row">
+          <div class="fg"><label>ID</label><input id="agent-id" placeholder="human2"></div>
+          <div class="fg"><label>Description</label><input id="agent-desc" placeholder="worker 2"></div>
+        </div>
+        <div class="fg"><label>Initial Location</label><select id="agent-init-loc"></select></div>
+        <div class="form-actions">
+          <button class="btn btn-primary btn-sm" onclick="addAgent()">Add</button>
+        </div>
+      </div>
+      <div id="agent-list"></div>
+    </div>
+
+    <!-- CONSTRAINTS -->
+    <div id="panel-constraints" class="panel">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Mission Constraints</span></div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+          <div class="fg"><label>Max Duration (min)</label><input id="c-max-dur" type="number" min="0" oninput="updateConstraint('max_duration', +this.value)"></div>
+          <div class="fg"><label>Mission Probability of Success</label><input id="c-mission-prob" type="number" min="0" max="1" step="0.01" oninput="updateConstraint('mission_probability_of_success', +this.value)"></div>
+          <div class="fg"><label>Min Assignment Probability</label><input id="c-min-prob" type="number" min="0" max="1" step="0.01" oninput="updateConstraint('min_assignment_probability', +this.value)"></div>
+          <div class="fg"><label>Target Tasks (comma-separated)</label><input id="c-targets" placeholder="Tractor_Final" oninput="updateTargets(this.value)"></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="canvas-area">
+    <canvas id="map-canvas"></canvas>
+    <div class="canvas-toolbar">
+      <button class="tool-btn active" id="tool-select"  onclick="setTool('select')">&#9654; Select</button>
+      <button class="tool-btn"        id="tool-addLoc"  onclick="setTool('addLoc')">+ Location</button>
+      <button class="tool-btn"        id="tool-addPath" onclick="setTool('addPath')">&#8594; Path</button>
+    </div>
+    <div class="canvas-hint" id="canvas-hint">Drag locations to position them</div>
+    <div class="legend">
+      <div class="legend-item"><div class="leg-circle" style="background:#3b82f6"></div>Location</div>
+      <div class="legend-item"><div class="leg-circle" style="background:#f59e0b"></div>Selected</div>
+      <div class="legend-item"><div class="leg-circle" style="background:#10b981;border-radius:0"></div>Task start</div>
+      <div class="legend-item"><div class="leg-circle" style="background:#ef4444;border-radius:0"></div>Task end</div>
+    </div>
+  </div>
+</main>
+
+<!-- ── MODAL ── -->
+<div class="modal-bg" id="modal-bg" onclick="bgClick(event)">
+  <div class="modal" id="modal-inner"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════
+const state = {
+  locations:   [],
+  paths:       [],
+  tasks:       [],
+  task_graph:  {},
+  agents:      [],
+  constraints: { mission_probability_of_success: 0.95, min_assignment_probability: 0.5, tasks_to_be_completed: [], max_duration: 100 }
+};
+
+// Canvas positions: locId → {x,y} in [0..1] normalised
+const pos = {};
+
+let bgImage    = null;
+let selLoc     = null;   // selected location id
+let hovTask    = null;   // hovered task id (for start/end highlight)
+let tool       = 'select';
+let pathStart  = null;   // first loc when drawing a path
+let dragging   = null;   // {id, ox, oy}  offset within node
+
+// ══════════════════════════════════════════════════════════════════════
+// CANVAS SETUP & RESIZE
+// ══════════════════════════════════════════════════════════════════════
+const canvas = document.getElementById('map-canvas');
+const ctx    = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const area = canvas.parentElement;
+  canvas.width  = area.clientWidth;
+  canvas.height = area.clientHeight;
+  render();
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ══════════════════════════════════════════════════════════════════════
+// RENDERING
+// ══════════════════════════════════════════════════════════════════════
+const AGENT_COLORS = ['#8b5cf6','#f59e0b','#10b981','#ef4444','#06b6d4','#ec4899'];
+const LOC_R = 20;
+
+function px(locId) {
+  const p = pos[locId];
+  if (!p) return null;
+  return { x: p.x * canvas.width, y: p.y * canvas.height };
+}
+
+function agentEmoji(id) {
+  const l = id.toLowerCase();
+  if (l.includes('drone')) return '🚁';
+  if (l.includes('tractor') || l.includes('vehicle')) return '🚜';
+  if (l.includes('robot')) return '🤖';
+  return '🧑';
+}
+
+function render() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  if (bgImage) {
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(bgImage, 0, 0, W, H);
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  }
+
+  // Paths
+  for (const path of state.paths) {
+    const a = px(path.start_location), b = px(path.end_location);
+    if (!a || !b) continue;
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = bgImage ? 'rgba(100,116,139,0.9)' : '#94a3b8';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.restore();
+    // Distance label
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    ctx.save();
+    ctx.fillStyle = bgImage ? 'rgba(255,255,255,0.9)' : '#64748b';
+    ctx.font = '10px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    if (path.distance != null) {
+      if (bgImage) { ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(mx-10, my-7, 20, 13); ctx.fillStyle='#fff'; }
+      ctx.fillText(path.distance, mx, my);
+    }
+    ctx.restore();
+  }
+
+  // Hovered task: highlight start=green, end=red
+  if (hovTask) {
+    const t = state.tasks.find(t => t.id === hovTask);
+    if (t) {
+      [t.start_location, t.end_location].forEach((lid, i) => {
+        const p = px(lid); if (!p) return;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(p.x, p.y, LOC_R + 5, 0, Math.PI*2);
+        ctx.fillStyle = i === 0 ? 'rgba(16,185,129,.25)' : 'rgba(239,68,68,.25)';
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+  }
+
+  // Path-drawing preview
+  if (tool === 'addPath' && pathStart) {
+    const a = px(pathStart);
+    if (a) {
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y);
+      if (_mousePos) ctx.lineTo(_mousePos.x, _mousePos.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Locations
+  for (const loc of state.locations) {
+    const p = px(loc.id); if (!p) continue;
+    const isSel = selLoc === loc.id;
+
+    // Shadow
+    ctx.save();
+    ctx.shadowColor = isSel ? '#f59e0b' : '#3b82f6';
+    ctx.shadowBlur  = isSel ? 12 : 6;
+    ctx.beginPath(); ctx.arc(p.x, p.y, LOC_R, 0, Math.PI*2);
+    ctx.fillStyle = isSel ? '#f59e0b' : '#3b82f6';
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath(); ctx.arc(p.x, p.y, LOC_R, 0, Math.PI*2);
+    ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
+
+    // ID inside
+    ctx.fillStyle = 'white'; ctx.font = 'bold 11px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(loc.id, p.x, p.y);
+
+    // Description below
+    if (loc.description) {
+      ctx.fillStyle = bgImage ? 'rgba(255,255,255,.95)' : '#374151';
+      ctx.font = '10px system-ui'; ctx.textBaseline = 'top';
+      if (bgImage) {
+        const tw = ctx.measureText(loc.description).width;
+        ctx.fillStyle = 'rgba(0,0,0,.45)';
+        ctx.fillRect(p.x - tw/2 - 3, p.y + LOC_R + 3, tw + 6, 13);
+        ctx.fillStyle = 'white';
+      }
+      ctx.fillText(loc.description, p.x, p.y + LOC_R + 4);
+    }
+  }
+
+  // Agents at initial locations (offset if multiple share a location)
+  const agentsByLoc = {};
+  for (const ag of state.agents) {
+    if (!ag.initial_location) continue;
+    (agentsByLoc[ag.initial_location] = agentsByLoc[ag.initial_location] || []).push(ag);
+  }
+  for (const [locId, ags] of Object.entries(agentsByLoc)) {
+    const p = px(locId); if (!p) continue;
+    ags.forEach((ag, i) => {
+      const angle = (i / ags.length) * Math.PI * 2 - Math.PI / 2;
+      const dist  = ags.length > 1 ? 38 : 34;
+      const ex = p.x + Math.cos(angle) * dist;
+      const ey = p.y + Math.sin(angle) * dist;
+      ctx.font = '18px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(agentEmoji(ag.id), ex, ey);
+      ctx.font = '9px system-ui'; ctx.fillStyle = bgImage ? '#fff' : '#1e293b';
+      ctx.textBaseline = 'top'; ctx.fillText(ag.id, ex, ey + 11);
+    });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// MOUSE / DRAG
+// ══════════════════════════════════════════════════════════════════════
+let _mousePos = null;
+
+function canvasXY(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+
+function hitLoc(mx, my) {
+  for (const loc of state.locations) {
+    const p = px(loc.id); if (!p) continue;
+    if (Math.hypot(mx - p.x, my - p.y) <= LOC_R + 4) return loc;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousemove', e => {
+  const {x, y} = canvasXY(e);
+  _mousePos = {x, y};
+  if (dragging) {
+    pos[dragging.id] = { x: (x - dragging.ox) / canvas.width, y: (y - dragging.oy) / canvas.height };
+    pos[dragging.id].x = Math.max(0.01, Math.min(0.99, pos[dragging.id].x));
+    pos[dragging.id].y = Math.max(0.01, Math.min(0.99, pos[dragging.id].y));
+    render(); return;
+  }
+  // Tooltip on hover
+  const loc = hitLoc(x, y);
+  const tt = document.getElementById('tooltip');
+  if (loc) {
+    canvas.style.cursor = tool === 'select' ? 'grab' : 'crosshair';
+    const tasks = state.tasks.filter(t => t.start_location === loc.id || t.end_location === loc.id);
+    const agents = state.agents.filter(a => a.initial_location === loc.id);
+    let html = `<b>${loc.id}</b>${loc.description ? ': ' + loc.description : ''}`;
+    if (tasks.length) html += '<br>Tasks: ' + tasks.map(t => t.id).join(', ');
+    if (agents.length) html += '<br>Agents: ' + agents.map(a => a.id).join(', ');
+    tt.innerHTML = html;
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top  = (e.clientY + 14) + 'px';
+  } else {
+    canvas.style.cursor = tool === 'addLoc' ? 'crosshair' : 'default';
+    tt.style.display = 'none';
+  }
+  if (tool === 'addPath') render();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  document.getElementById('tooltip').style.display = 'none';
+  _mousePos = null;
+  render();
+});
+
+canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  const {x, y} = canvasXY(e);
+  const loc = hitLoc(x, y);
+
+  if (tool === 'select') {
+    if (loc) {
+      selLoc = loc.id;
+      const p = px(loc.id);
+      dragging = { id: loc.id, ox: x - p.x, oy: y - p.y };
+      canvas.style.cursor = 'grabbing';
+    } else {
+      selLoc = null;
+    }
+    render();
+  } else if (tool === 'addLoc') {
+    const id = prompt('Location ID (e.g. l8):');
+    if (!id || !id.trim()) return;
+    if (state.locations.find(l => l.id === id.trim())) { alert('ID already exists'); return; }
+    const desc = prompt('Description (optional):') || '';
+    state.locations.push({ id: id.trim(), description: desc, coordinates: { x: 0, y: 0 } });
+    pos[id.trim()] = { x: x / canvas.width, y: y / canvas.height };
+    refreshAll();
+  } else if (tool === 'addPath') {
+    if (!loc) return;
+    if (!pathStart) {
+      pathStart = loc.id;
+      document.getElementById('canvas-hint').textContent = `Click another location to complete the path from ${loc.id}`;
+    } else if (loc.id !== pathStart) {
+      prefillPathForm(pathStart, loc.id);
+      pathStart = null;
+      setTool('select');
+      switchTab('paths');
+    }
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  dragging = null;
+  canvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// TOOLS
+// ══════════════════════════════════════════════════════════════════════
+const HINTS = {
+  select:  'Drag locations to reposition them',
+  addLoc:  'Click on the map to place a new location',
+  addPath: 'Click a start location, then an end location'
+};
+
+function setTool(t) {
+  tool = t; pathStart = null;
+  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tool-' + t)?.classList.add('active');
+  document.getElementById('canvas-hint').textContent = HINTS[t];
+  canvas.style.cursor = t === 'select' ? 'default' : 'crosshair';
+}
+
+function prefillPathForm(from, to) {
+  document.getElementById('path-id').value   = from.replace(/\s/g,'') + to.replace(/\s/g,'');
+  document.getElementById('path-from').value = from;
+  document.getElementById('path-to').value   = to;
+  document.getElementById('path-desc').value = `Path from ${from} to ${to}`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  if (name === 'paths') refreshLocSelects();
+  if (name === 'tasks') refreshLocSelects();
+  if (name === 'agents') refreshLocSelects();
+  if (name === 'constraints') loadConstraintsForm();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// LOCATIONS
+// ══════════════════════════════════════════════════════════════════════
+function addLocation() {
+  const id   = document.getElementById('loc-id').value.trim();
+  const desc = document.getElementById('loc-desc').value.trim();
+  if (!id) return;
+  if (state.locations.find(l => l.id === id)) { alert('Location ID already exists'); return; }
+  state.locations.push({ id, description: desc, coordinates: { x: 0.5, y: 0.5 } });
+  pos[id] = { x: 0.1 + Math.random() * 0.8, y: 0.1 + Math.random() * 0.8 };
+  document.getElementById('loc-id').value = '';
+  document.getElementById('loc-desc').value = '';
+  refreshAll();
+}
+
+function deleteLocation(id) {
+  if (!confirm(`Delete location "${id}"?`)) return;
+  state.locations = state.locations.filter(l => l.id !== id);
+  delete pos[id];
+  // Clean up references
+  state.paths  = state.paths.filter(p => p.start_location !== id && p.end_location !== id);
+  state.tasks  = state.tasks.filter(t => t.start_location !== id && t.end_location !== id);
+  for (const ag of state.agents) { if (ag.initial_location === id) ag.initial_location = ''; }
+  refreshAll();
+}
+
+function renderLocList() {
+  const el = document.getElementById('loc-list');
+  el.innerHTML = state.locations.map(l => `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${l.id}</div>
+          <div class="card-sub">${l.description || '—'}</div>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" onclick="selLoc='${l.id}';render()">Focus</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteLocation('${l.id}')">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// PATHS
+// ══════════════════════════════════════════════════════════════════════
+function addPath() {
+  const id   = document.getElementById('path-id').value.trim();
+  const from = document.getElementById('path-from').value;
+  const to   = document.getElementById('path-to').value;
+  const dist = parseFloat(document.getElementById('path-dist').value) || 1;
+  const desc = document.getElementById('path-desc').value.trim();
+  if (!id || !from || !to) return;
+  if (state.paths.find(p => p.id === id)) { alert('Path ID already exists'); return; }
+  state.paths.push({ id, start_location: from, end_location: to, path_description: desc, distance: dist });
+  document.getElementById('path-id').value = '';
+  document.getElementById('path-dist').value = '';
+  document.getElementById('path-desc').value = '';
+  refreshAll();
+}
+
+function deletePath(id) {
+  state.paths = state.paths.filter(p => p.id !== id);
+  refreshAll();
+}
+
+function renderPathList() {
+  const el = document.getElementById('path-list');
+  el.innerHTML = state.paths.map(p => `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${p.id}</div>
+          <div class="card-sub">${p.start_location} → ${p.end_location} &nbsp;(dist: ${p.distance ?? '?'})</div>
+          ${p.path_description ? `<div class="card-sub">${p.path_description}</div>` : ''}
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-danger btn-sm" onclick="deletePath('${p.id}')">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TASKS
+// ══════════════════════════════════════════════════════════════════════
+function addTask() {
+  const id    = document.getElementById('task-id').value.trim();
+  const start = document.getElementById('task-start').value;
+  const end   = document.getElementById('task-end').value;
+  const desc  = document.getElementById('task-desc').value.trim();
+  const inter = document.getElementById('task-interchangeable').checked;
+  if (!id) return;
+  if (state.tasks.find(t => t.id === id)) { alert('Task ID already exists'); return; }
+  state.tasks.push({ id, start_location: start, end_location: end, start_end_location_interchangeable: inter, ...(desc && { description: desc }) });
+  if (!state.task_graph[id]) state.task_graph[id] = { depends_on: [], dependency_type: 'AND' };
+  document.getElementById('task-id').value = '';
+  document.getElementById('task-desc').value = '';
+  document.getElementById('task-interchangeable').checked = false;
+  refreshAll();
+}
+
+function deleteTask(id) {
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  delete state.task_graph[id];
+  for (const k of Object.keys(state.task_graph)) {
+    state.task_graph[k].depends_on = state.task_graph[k].depends_on.filter(d => d !== id);
+  }
+  refreshAll();
+}
+
+function renderTaskList() {
+  const el = document.getElementById('task-list');
+  el.innerHTML = state.tasks.map(t => {
+    const g = state.task_graph[t.id] || {};
+    const deps = (g.depends_on || []).join(', ') || '—';
+    return `
+    <div class="card" onmouseenter="hovTask='${t.id}';render()" onmouseleave="hovTask=null;render()">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${t.id}</div>
+          <div class="card-sub">${t.start_location || '?'} → ${t.end_location || '?'}</div>
+          ${t.description ? `<div class="card-sub">${t.description}</div>` : ''}
+          <div style="margin-top:4px">
+            <span class="tag tag-blue">${g.dependency_type || 'AND'}</span>
+            ${(g.depends_on||[]).map(d => `<span class="tag">${d}</span>`).join('')}
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openTaskEditModal('${t.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTask('${t.id}')">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// AGENTS
+// ══════════════════════════════════════════════════════════════════════
+function addAgent() {
+  const id   = document.getElementById('agent-id').value.trim();
+  const desc = document.getElementById('agent-desc').value.trim();
+  const loc  = document.getElementById('agent-init-loc').value;
+  if (!id) return;
+  if (state.agents.find(a => a.id === id)) { alert('Agent ID already exists'); return; }
+  state.agents.push({ id, description: desc, initial_location: loc, tasks: [], travel: [] });
+  document.getElementById('agent-id').value = '';
+  document.getElementById('agent-desc').value = '';
+  refreshAll();
+}
+
+function deleteAgent(id) {
+  if (!confirm(`Delete agent "${id}"?`)) return;
+  state.agents = state.agents.filter(a => a.id !== id);
+  refreshAll();
+}
+
+function renderAgentList() {
+  const el = document.getElementById('agent-list');
+  el.innerHTML = state.agents.map(ag => `
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${agentEmoji(ag.id)} ${ag.id}</div>
+          <div class="card-sub">${ag.description || ''}</div>
+          <div class="card-sub">Initial: <b>${ag.initial_location || '—'}</b></div>
+          <div style="margin-top:4px">${(ag.tasks||[]).map(t=>`<span class="tag tag-green">${t.id}</span>`).join('')}</div>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openAgentModal('${ag.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteAgent('${ag.id}')">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// CONSTRAINTS
+// ══════════════════════════════════════════════════════════════════════
+function loadConstraintsForm() {
+  const c = state.constraints;
+  document.getElementById('c-max-dur').value     = c.max_duration ?? 100;
+  document.getElementById('c-mission-prob').value = c.mission_probability_of_success ?? 0.95;
+  document.getElementById('c-min-prob').value    = c.min_assignment_probability ?? 0.5;
+  document.getElementById('c-targets').value     = (c.tasks_to_be_completed || []).join(', ');
+}
+function updateConstraint(key, val) { state.constraints[key] = val; }
+function updateTargets(val) {
+  state.constraints.tasks_to_be_completed = val.split(',').map(s=>s.trim()).filter(Boolean);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════════════════════════════════
+function openModal(html) {
+  document.getElementById('modal-inner').innerHTML = html;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-bg').classList.remove('open');
+  refreshAll();
+}
+function bgClick(e) { if (e.target === document.getElementById('modal-bg')) closeModal(); }
+
+// Task edit modal (locations + dependencies)
+function openTaskEditModal(tid) {
+  const t = state.tasks.find(t => t.id === tid);
+  if (!t) return;
+  const g = state.task_graph[tid] || { depends_on: [], dependency_type: 'AND' };
+  const locOpts = state.locations.map(l => `<option value="${l.id}" ${l.id===t.start_location?'selected':''}>${l.id}</option>`).join('');
+  const locOptsE = state.locations.map(l => `<option value="${l.id}" ${l.id===t.end_location?'selected':''}>${l.id}</option>`).join('');
+  const allTaskIds = [...new Set([...state.tasks.map(t=>t.id), ...Object.keys(state.task_graph)])].filter(id => id !== tid);
+  const depsHtml = allTaskIds.map(id => `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8;padding:3px 0">
+      <input type="checkbox" ${g.depends_on.includes(id)?'checked':''} onchange="toggleDep('${tid}','${id}',this.checked)">
+      ${id}
+    </label>`).join('');
+
+  openModal(`
+    <h2>Edit Task: ${tid}</h2>
+    <div class="fg"><label>Start Location</label>
+      <select id="te-start" onchange="state.tasks.find(t=>t.id==='${tid}').start_location=this.value;render()">${locOpts}</select>
+    </div>
+    <div class="fg"><label>End Location</label>
+      <select id="te-end" onchange="state.tasks.find(t=>t.id==='${tid}').end_location=this.value;render()">${locOptsE}</select>
+    </div>
+    <div class="fg"><label>Description</label>
+      <input value="${t.description||''}" oninput="state.tasks.find(t=>t.id==='${tid}').description=this.value">
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#94a3b8">
+      <input type="checkbox" ${t.start_end_location_interchangeable?'checked':''} onchange="state.tasks.find(t=>t.id==='${tid}').start_end_location_interchangeable=this.checked">
+      Start/end interchangeable
+    </label>
+    <div style="margin-top:4px">
+      <div class="sec-title" style="margin-bottom:6px">Dependencies</div>
+      <div class="fg" style="margin-bottom:6px"><label>Type</label>
+        <select onchange="(state.task_graph['${tid}']||(state.task_graph['${tid}']={depends_on:[],dependency_type:'AND'})).dependency_type=this.value">
+          <option ${g.dependency_type==='AND'?'selected':''}>AND</option>
+          <option ${g.dependency_type==='OR'?'selected':''}>OR</option>
+        </select>
+      </div>
+      <div style="max-height:160px;overflow-y:auto;background:#12161f;border-radius:6px;padding:8px">${depsHtml||'<span style="color:#64748b;font-size:11px">No other tasks defined yet</span>'}</div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Done</button></div>
+  `);
+}
+
+function toggleDep(tid, dep, checked) {
+  if (!state.task_graph[tid]) state.task_graph[tid] = { depends_on: [], dependency_type: 'AND' };
+  const g = state.task_graph[tid];
+  if (checked && !g.depends_on.includes(dep)) g.depends_on.push(dep);
+  if (!checked) g.depends_on = g.depends_on.filter(d => d !== dep);
+}
+
+// Task graph modal (for virtual nodes)
+function openTaskGraphModal() {
+  const allIds = [...new Set([...state.tasks.map(t=>t.id), ...Object.keys(state.task_graph)])];
+  const rows = allIds.map(id => {
+    const g = state.task_graph[id] || { depends_on: [], dependency_type: 'AND' };
+    return `<div class="sub-item"><div class="sub-item-content">
+      <b>${id}</b> <span class="tag tag-blue">${g.dependency_type}</span><br>
+      <span style="font-size:10px;color:#64748b">→ ${g.depends_on.join(', ')||'(none)'}</span>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="closeModal();openTaskEditModal('${id}')">Edit</button>
+    </div>`;
+  }).join('');
+  openModal(`
+    <h2>Task Graph</h2>
+    <p style="font-size:11px;color:#64748b;margin-bottom:8px">Click Edit on any task to modify its dependencies. Add virtual nodes (abstract groupings) below.</p>
+    <div class="sub-list">${rows}</div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <input id="vnode-id" class="fg" placeholder="Virtual node ID (e.g. Deliver_Box1)" style="background:#0f1117;border:1px solid #374151;border-radius:4px;padding:5px 8px;color:#e2e8f0;flex:1">
+      <button class="btn btn-secondary btn-sm" onclick="addVirtualNode()">Add</button>
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Close</button></div>
+  `);
+}
+
+function addVirtualNode() {
+  const id = document.getElementById('vnode-id').value.trim();
+  if (!id) return;
+  if (!state.task_graph[id]) state.task_graph[id] = { depends_on: [], dependency_type: 'AND' };
+  document.getElementById('vnode-id').value = '';
+  openTaskGraphModal(); // refresh
+}
+
+// Agent modal
+function openAgentModal(agId) {
+  const ag = state.agents.find(a => a.id === agId);
+  if (!ag) return;
+
+  const locOpts = state.locations.map(l => `<option value="${l.id}" ${l.id===ag.initial_location?'selected':''}>${l.id} – ${l.description||''}</option>`).join('');
+  const taskCapabilities = (ag.tasks || []);
+  const travelList = (ag.travel || []);
+
+  const allTaskIds = state.tasks.map(t => t.id);
+  const assignedIds = taskCapabilities.map(t => t.id);
+
+  const taskRows = taskCapabilities.map((t, i) => `
+    <div class="sub-item">
+      <div class="sub-item-content">
+        <b>${t.id}</b><br>
+        <span style="font-size:10px;color:#94a3b8">dur: ${t.duration}min  fatigue: ${t.fatigue??'-'}  p(success): ${t.probability_of_success??'-'}</span>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="removeAgentTask('${agId}',${i});openAgentModal('${agId}')">✕</button>
+    </div>`).join('');
+
+  const unassigned = allTaskIds.filter(id => !assignedIds.includes(id));
+  const addTaskRow = unassigned.length ? `
+    <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+      <select id="at-task" style="background:#0f1117;border:1px solid #374151;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:11px;flex:1">
+        ${unassigned.map(id=>`<option>${id}</option>`).join('')}
+      </select>
+      <input id="at-dur" type="number" min="0" placeholder="dur (min)" style="background:#0f1117;border:1px solid #374151;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:11px;width:90px">
+      <button class="btn btn-secondary btn-sm" onclick="assignAgentTask('${agId}');openAgentModal('${agId}')">+ Assign</button>
+    </div>` : `<div class="card-sub" style="margin-top:4px">All tasks assigned.</div>`;
+
+  const travelRows = travelList.map((tr, i) => `
+    <div class="sub-item">
+      <div class="sub-item-content"><b>${tr.id}</b>  <span style="font-size:10px;color:#94a3b8">${tr.duration} min</span></div>
+      <button class="btn btn-danger btn-sm" onclick="removeAgentTravel('${agId}',${i});openAgentModal('${agId}')">✕</button>
+    </div>`).join('');
+
+  const pathOpts = state.paths.map(p => `<option value="${p.id}">${p.id} (${p.start_location}↔${p.end_location})</option>`).join('');
+  const addTravelRow = pathOpts ? `
+    <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
+      <select id="atr-path" style="background:#0f1117;border:1px solid #374151;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:11px;flex:1">${pathOpts}</select>
+      <input id="atr-dur" type="number" min="0" placeholder="dur (min)" style="background:#0f1117;border:1px solid #374151;border-radius:4px;padding:4px 6px;color:#e2e8f0;font-size:11px;width:90px">
+      <button class="btn btn-secondary btn-sm" onclick="assignAgentTravel('${agId}');openAgentModal('${agId}')">+ Add</button>
+    </div>` : '';
+
+  openModal(`
+    <h2>${agentEmoji(agId)} ${agId}</h2>
+    <div class="fg"><label>Description</label>
+      <input value="${ag.description||''}" oninput="state.agents.find(a=>a.id==='${agId}').description=this.value">
+    </div>
+    <div class="fg"><label>Initial Location</label>
+      <select onchange="state.agents.find(a=>a.id==='${agId}').initial_location=this.value;render()">${locOpts}</select>
+    </div>
+    <div class="sec-title" style="margin-top:6px;margin-bottom:4px">Task Capabilities</div>
+    <div class="sub-list">${taskRows}</div>
+    ${addTaskRow}
+    <div class="sec-title" style="margin-top:10px;margin-bottom:4px">Travel Times</div>
+    <div class="sub-list">${travelRows}</div>
+    ${addTravelRow}
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Done</button></div>
+  `);
+}
+
+function removeAgentTask(agId, idx) {
+  const ag = state.agents.find(a => a.id === agId);
+  if (ag) ag.tasks.splice(idx, 1);
+}
+function assignAgentTask(agId) {
+  const ag = state.agents.find(a => a.id === agId); if (!ag) return;
+  const id = document.getElementById('at-task').value;
+  const dur = parseInt(document.getElementById('at-dur').value) || 0;
+  if (ag.tasks.find(t => t.id === id)) return;
+  ag.tasks.push({ id, duration: dur, fatigue: 0, probability_of_success: 1.0, number_of_retries: 1 });
+}
+function removeAgentTravel(agId, idx) {
+  const ag = state.agents.find(a => a.id === agId);
+  if (ag) ag.travel.splice(idx, 1);
+}
+function assignAgentTravel(agId) {
+  const ag = state.agents.find(a => a.id === agId); if (!ag) return;
+  const id = document.getElementById('atr-path').value;
+  const dur = parseInt(document.getElementById('atr-dur').value) || 0;
+  if (ag.travel.find(t => t.id === id)) { ag.travel.find(t=>t.id===id).duration = dur; return; }
+  ag.travel.push({ id, duration: dur });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// REFRESH ALL PANELS
+// ══════════════════════════════════════════════════════════════════════
+function refreshLocSelects() {
+  const locOpts = ['<option value="">—</option>', ...state.locations.map(l => `<option value="${l.id}">${l.id} – ${l.description||''}</option>`)].join('');
+  ['path-from','path-to','task-start','task-end','agent-init-loc'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.innerHTML = locOpts;
+  });
+}
+
+function refreshAll() {
+  renderLocList();
+  renderPathList();
+  renderTaskList();
+  renderAgentList();
+  refreshLocSelects();
+  render();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// IMPORT / EXPORT
+// ══════════════════════════════════════════════════════════════════════
+document.getElementById('json-import').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      loadData(data);
+    } catch(err) { alert('Invalid JSON: ' + err.message); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function loadData(data) {
+  state.locations  = data.locations   || [];
+  state.paths      = data.paths       || [];
+  state.tasks      = data.tasks       || [];
+  state.task_graph = data.task_graph  || {};
+  state.agents     = data.agents      || [];
+  state.constraints = { ...state.constraints, ...(data.constraints || {}) };
+
+  // Normalise agent tasks: support flat fields fallback
+  for (const ag of state.agents) {
+    ag.tasks = (ag.tasks || []).map(t => {
+      const dur = t.duration || t.metric_values?.duration || t.metric_values?.duration_direct || 0;
+      return { ...t, duration: dur };
+    });
+  }
+
+  autoLayout();
+  refreshAll();
+  loadConstraintsForm();
+}
+
+function autoLayout() {
+  const locs = state.locations;
+  if (!locs.length) return;
+  const xs = locs.map(l => l.coordinates?.x ?? 0);
+  const ys = locs.map(l => l.coordinates?.y ?? 0);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const rx = maxX - minX || 1, ry = maxY - minY || 1;
+  const pad = 0.12;
+  for (const loc of locs) {
+    // Keep existing canvas position if already placed
+    if (pos[loc.id]) continue;
+    const x = loc.coordinates?.x ?? 0;
+    const y = loc.coordinates?.y ?? 0;
+    pos[loc.id] = {
+      x: pad + ((x - minX) / rx) * (1 - 2*pad),
+      y: pad + ((y - minY) / ry) * (1 - 2*pad)
+    };
+  }
+}
+
+function exportJSON() {
+  // Write back canvas positions to coordinates
+  for (const loc of state.locations) {
+    const p = pos[loc.id];
+    if (p) loc.coordinates = { x: parseFloat((p.x * 100).toFixed(1)), y: parseFloat((p.y * 100).toFixed(1)) };
+  }
+  const out = {
+    _comment: 'Locations',
+    locations:   state.locations,
+    paths:       state.paths,
+    _comment2:   'Tasks — start/end_location are the agent\'s physical start and end of each task',
+    tasks:       state.tasks,
+    task_graph:  state.task_graph,
+    _comment3:   'Agents',
+    agents:      state.agents,
+    constraints: state.constraints
+  };
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'planning_problem.json';
+  a.click();
+}
+
+// Background image
+document.getElementById('bg-upload').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => { bgImage = img; render(); };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════════════
+resizeCanvas();
+refreshAll();
+loadConstraintsForm();
+
+// Load example data automatically if available (nice onboarding)
+// Users can always import their own JSON
+</script>
+</body>
+</html>

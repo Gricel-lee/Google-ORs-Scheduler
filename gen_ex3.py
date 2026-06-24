@@ -2,7 +2,7 @@ from ortools.sat.python import cp_model
 
 # ─────────────────────────────────────────────────────────────────────
 # Auto-generated CP-SAT solver
-# Targets       : ['Harvest_Row3']
+# Targets       : ['Harvest_Row1', 'Harvest_Row2']
 # Max duration  : 100 min
 # Virtual nodes : []  (abstract; resolved by alternatives)
 # Derived-opt.  : []  (run only when triggered)
@@ -40,17 +40,9 @@ def main():
     agent_ivs['human1'].append(
         model.NewIntervalVar(ts['Harvest_Row2'], 11, te['Harvest_Row2'], 'Harvest_Row2_iv'))
 
-    # Harvest_Row3  (human1, 5 min)
-    ts['Harvest_Row3'], te['Harvest_Row3'] = make_iv('Harvest_Row3', 5)
-    pr['Harvest_Row3']  = 1
-    asg[('Harvest_Row3', 'human1')] = 1
-    agent_ivs['human1'].append(
-        model.NewIntervalVar(ts['Harvest_Row3'], 5, te['Harvest_Row3'], 'Harvest_Row3_iv'))
-
     # ── Optional subtasks (concrete alternatives of virtual nodes) ──────
     # ── Direction vars (True = start→end, False = end→start) ──────────
     _dir_Harvest_Row2 = model.NewBoolVar('Harvest_Row2_dir')
-    _dir_Harvest_Row3 = model.NewBoolVar('Harvest_Row3_dir')
 
     # ── Initial positioning (agent start → first task) ─────────────────
     model.Add(ts['Harvest_Row1'] >= 1)
@@ -58,12 +50,6 @@ def main():
     model.Add(ts['Harvest_Row2'] >= 2).OnlyEnforceIf(_dir_Harvest_Row2.Not())
 
     # ── Dependencies ──────────────────────────────────────────────────
-    _dep_Harvest_Row3_Harvest_Row1 = model.NewBoolVar('Harvest_Row3_after_Harvest_Row1')
-    model.Add(ts['Harvest_Row3'] >= te['Harvest_Row1']).OnlyEnforceIf(_dep_Harvest_Row3_Harvest_Row1)
-    _dep_Harvest_Row3_Harvest_Row2 = model.NewBoolVar('Harvest_Row3_after_Harvest_Row2')
-    model.Add(ts['Harvest_Row3'] >= te['Harvest_Row2']).OnlyEnforceIf(_dep_Harvest_Row3_Harvest_Row2)
-    model.AddBoolOr([_dep_Harvest_Row3_Harvest_Row1, _dep_Harvest_Row3_Harvest_Row2])
-    # ^ Harvest_Row3 starts after ANY active dep in ['Harvest_Row1', 'Harvest_Row2']
 
     # ── Pairwise travel (same-agent, no dep ordering) ────────────────
     # pairwise travel: Harvest_Row1 ↔ Harvest_Row2 (human1)
@@ -79,7 +65,9 @@ def main():
             model.AddNoOverlap(ivs)
 
     # ── Objective: minimise completion of target tasks ────────────────
-    model.Minimize(te['Harvest_Row3'])
+    makespan = model.NewIntVar(0, horizon, "makespan")
+    model.AddMaxEquality(makespan, [te['Harvest_Row1'], te['Harvest_Row2']])
+    model.Minimize(makespan)
 
     # ── Solve ─────────────────────────────────────────────────────────
     solver = cp_model.CpSolver()
@@ -94,8 +82,8 @@ def main():
     print(f"Solution — makespan: {int(solver.ObjectiveValue())} min\n")
 
     virtual_nodes = []
-    _task_locs    = {'Harvest_Row1': ('l1', 'l2'), 'Harvest_Row2': ('l3', 'l4'), 'Harvest_Row3': ('l3', 'l3')}
-    _dir_vars     = {'Harvest_Row2': _dir_Harvest_Row2, 'Harvest_Row3': _dir_Harvest_Row3}
+    _task_locs    = {'Harvest_Row1': ('l1', 'l2'), 'Harvest_Row2': ('l3', 'l4')}
+    _dir_vars     = {'Harvest_Row2': _dir_Harvest_Row2}
     _agent_init   = {'human1': 'l2'}
     _task_intra   = {'Harvest_Row1': ('l1l2', 1), 'Harvest_Row2': ('l3l4', 1)}
     _agent_paths  = {('human1', 'l2', 'l4'): [('l2', 'l1', 1), ('l1', 'l4', 1)], ('human1', 'l4', 'l2'): [('l4', 'l1', 1), ('l1', 'l2', 1)]}

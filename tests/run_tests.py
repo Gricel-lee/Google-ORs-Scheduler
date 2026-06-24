@@ -26,7 +26,7 @@ import tempfile
 
 TESTS_DIR   = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT   = os.path.dirname(TESTS_DIR)
-GENERATOR   = os.path.join(REPO_ROOT, 'planning_generator.py')
+GENERATOR   = os.path.join(REPO_ROOT, 'main_generator.py')
 PYTHON      = sys.executable
 
 TEST_FILES = [
@@ -36,6 +36,8 @@ TEST_FILES = [
     'test_derived_optional.json',
     'test_interchangeable_direction.json',
     'example.json',   # the canonical example — expected makespan 62
+    'ex4.json',       # OR-dep, single agent, expected makespan 10
+    'ex5.json',       # OR-dep, two agents, expected makespan 10
 ]
 
 

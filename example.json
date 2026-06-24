@@ -48,78 +48,67 @@
       "id": "l1l2",
       "start_location": "l1",
       "end_location": "l2",
-      "path_description": "Path from l1 to l2",
-      "distance": 1
+      "path_description": "Path from l1 to l2"
     },
     {
       "id": "l1l5",
       "start_location": "l1",
       "end_location": "l5",
-      "path_description": "Path from l1 to l5",
-      "distance": 5
+      "path_description": "Path from l1 to l5"
     },
     {
       "id": "l2l5",
       "start_location": "l2",
       "end_location": "l5",
-      "path_description": "Path from l2 to l5",
-      "distance": 1
+      "path_description": "Path from l2 to l5"
     },
     {
       "id": "l2l6",
       "start_location": "l2",
       "end_location": "l6",
-      "path_description": "Path from l2 to l6",
-      "distance": 1
+      "path_description": "Path from l2 to l6"
     },
     {
       "id": "l3l4",
       "start_location": "l3",
       "end_location": "l4",
-      "path_description": "Path from l3 to l4",
-      "distance": 1
+      "path_description": "Path from l3 to l4"
     },
     {
       "id": "l3l5",
       "start_location": "l3",
       "end_location": "l5",
-      "path_description": "Path from l3 to l5",
-      "distance": 1
+      "path_description": "Path from l3 to l5"
     },
     {
       "id": "l3l6",
       "start_location": "l3",
       "end_location": "l6",
-      "path_description": "Path from l3 to l6",
-      "distance": 1
+      "path_description": "Path from l3 to l6"
     },
     {
       "id": "l4l5",
       "start_location": "l4",
       "end_location": "l5",
-      "path_description": "Path from l4 to l5",
-      "distance": 1
+      "path_description": "Path from l4 to l5"
     },
     {
       "id": "l4l6",
       "start_location": "l4",
       "end_location": "l6",
-      "path_description": "Path from l4 to l6",
-      "distance": 1
+      "path_description": "Path from l4 to l6"
     },
     {
       "id": "l5l7",
       "start_location": "l5",
       "end_location": "l7",
-      "path_description": "Path from l5 to l7",
-      "distance": 1
+      "path_description": "Path from l5 to l7"
     },
     {
       "id": "l6l5",
       "start_location": "l6",
       "end_location": "l5",
-      "path_description": "Path from l6 to l5",
-      "distance": 1
+      "path_description": "Path from l6 to l5"
     }
   ],
 
