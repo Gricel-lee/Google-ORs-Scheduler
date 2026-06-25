@@ -608,8 +608,12 @@ def generate(data: dict) -> str:
             tlocs = task_locs.get(tid, {})
             if not tlocs.get('start'):
                 continue
-            is_root_opt = tid in optional_subs or tid in derived_optional or tid in or_optional
-            p_root = f'_p_{safe(tid)}'
+            # Use per-agent presence when available (multi-agent optional tasks),
+            # so each agent's travel-time lower-bound only fires when that agent
+            # is the one assigned — not when a faster agent is assigned instead.
+            p_guard = agent_presence.get((tid, agent_id))
+            # p_guard is None (mandatory, no guard), a task-level var (single-agent optional),
+            # or a per-agent var (multi-agent optional).
             if tlocs.get('interchangeable') and tid in dir_vars:
                 dir_v = dir_vars[tid]
                 for t_val, g_dir in [
@@ -617,23 +621,52 @@ def generate(data: dict) -> str:
                     (dijkstra_travel(ag_graph, init_loc, tlocs['end']),   f'~{dir_v}'),
                 ]:
                     if t_val > 0:
-                        g = ([p_root, g_dir] if is_root_opt else [g_dir])
+                        g = ([x for x in [p_guard, g_dir] if x])
                         init_pos_lines.append((tid, t_val, g))
             else:
                 t_val = dijkstra_travel(ag_graph, init_loc, tlocs['start'])
                 if t_val > 0:
-                    g = ([p_root] if is_root_opt else [])
+                    g = ([p_guard] if p_guard else [])
                     init_pos_lines.append((tid, t_val, g))
 
-    if init_pos_lines:
+    # Deduplicate: same (tid, t_val, guards) can appear once per agent when agents share
+    # the same initial location and task capability.
+    seen_pos: set = set()
+    unique_pos_lines: list = []
+    for entry in init_pos_lines:
+        key = (entry[0], entry[1], tuple(entry[2]))
+        if key not in seen_pos:
+            seen_pos.add(key)
+            unique_pos_lines.append(entry)
+
+    if unique_pos_lines:
         w('    # ── Initial positioning (agent start → first task) ─────────────────')
-        for tid, t_val, guards in init_pos_lines:
+        for tid, t_val, guards in unique_pos_lines:
             emit_ts_lb(w, tid, t_val, guards)
         w()
 
     # ── Dependencies ──────────────────────────────────────────────────────────
     # Track ordering BoolVars per OR-optional dep for reverse implications below.
     or_dep_bvars: dict = defaultdict(list)   # {or_optional_dep_id: [bv_varname, ...]}
+
+    def emit_dep_travel(w_fn, tid_task, dep_task, from_loc, to_loc, base_g):
+        """Emit per-(dep-agent, tid-agent) pair dependency travel constraints.
+        Same-agent pair: actual inter-task travel time.
+        Cross-agent pair: t_val=0 — agents are independent, just ordering matters.
+        Deduplicates identical (t_val, guards) combinations."""
+        dep_ags = task_to_agents.get(dep_task) or [(None, 0)]
+        tid_ags = task_to_agents.get(tid_task) or [(None, 0)]
+        seen: set = set()
+        for ag_d, _ in dep_ags:
+            p_d = agent_presence.get((dep_task, ag_d)) if ag_d else None
+            for ag_t, _ in tid_ags:
+                p_t = agent_presence.get((tid_task, ag_t)) if ag_t else None
+                t_val = travel(ag_t, from_loc, to_loc) if (ag_d == ag_t and ag_t) else 0
+                g = base_g + [x for x in [p_d, p_t] if x]
+                key = (t_val, tuple(g))
+                if key not in seen:
+                    seen.add(key)
+                    emit_constraint(w_fn, tid_task, dep_task, t_val, g)
     w('    # ── Dependencies ──────────────────────────────────────────────────')
     for tid, node in task_graph.items():
         if tid not in required:
@@ -651,39 +684,26 @@ def generate(data: dict) -> str:
             tid_interch = tid_locs.get('interchangeable', False) and tid in dir_vars
 
             for dep in deps:
-                dep_is_opt = dep in optional_subs or dep in derived_optional or dep in or_optional
-                dep_p      = f'_p_{safe(dep)}'
                 dep_locs   = task_locs.get(dep, {})
                 dep_interch = dep_locs.get('interchangeable', False) and dep in dir_vars
-
-                # Base guards (presence of optional tid / dep)
-                base_g = ([p_tid] if is_opt else []) + ([dep_p] if dep_is_opt else [])
 
                 if dep in virtual:
                     # Expand virtual dep → per-subtask constraints with travel
                     for sub in subtask_map.get(dep, []):
-                        sub_p   = f'_p_{safe(sub)}'
                         sub_end = task_locs.get(sub, {}).get('end', '')
-                        ca      = common_agents(sub, tid, task_to_agents)
-                        ag      = ca[0] if ca else None
                         if tid_interch:
                             dir_t = dir_vars[tid]
                             for to_loc, g_dir in [
                                 (tid_locs['start'], dir_t),
                                 (tid_locs['end'],   f'~{dir_t}'),
                             ]:
-                                t_val = travel(ag, sub_end, to_loc) if ag else 0
-                                emit_constraint(w, tid, sub, t_val,
-                                                [sub_p, g_dir] + ([p_tid] if is_opt else []))
+                                emit_dep_travel(w, tid, sub, sub_end, to_loc, [g_dir])
                         else:
-                            t_val = travel(ag, sub_end, tid_locs.get('start', '')) if ag else 0
-                            emit_constraint(w, tid, sub, t_val, [sub_p] + ([p_tid] if is_opt else []))
+                            emit_dep_travel(w, tid, sub, sub_end, tid_locs.get('start', ''), [])
                 elif dep_interch:
                     dir_d = dir_vars[dep]
                     if tid_interch:
                         dir_t = dir_vars[tid]
-                        ca = common_agents(dep, tid, task_to_agents)
-                        ag = ca[0] if ca else None
                         for from_loc, g_d in [
                             (dep_locs['end'],   dir_d),
                             (dep_locs['start'], f'~{dir_d}'),
@@ -692,22 +712,16 @@ def generate(data: dict) -> str:
                                 (tid_locs['start'], dir_t),
                                 (tid_locs['end'],   f'~{dir_t}'),
                             ]:
-                                t_val = travel(ag, from_loc, to_loc) if ag else 0
-                                emit_constraint(w, tid, dep, t_val, base_g + [g_d, g_t])
+                                emit_dep_travel(w, tid, dep, from_loc, to_loc, [g_d, g_t])
                     else:
-                        ca = common_agents(dep, tid, task_to_agents)
-                        ag = ca[0] if ca else None
                         to_loc = tid_locs.get('start', '')
                         for from_loc, g_d in [
                             (dep_locs['end'],   dir_d),
                             (dep_locs['start'], f'~{dir_d}'),
                         ]:
-                            t_val = travel(ag, from_loc, to_loc) if ag else 0
-                            emit_constraint(w, tid, dep, t_val, base_g + [g_d])
+                            emit_dep_travel(w, tid, dep, from_loc, to_loc, [g_d])
                 else:
                     # Non-interchangeable concrete dep
-                    ca = common_agents(dep, tid, task_to_agents)
-                    ag = ca[0] if ca else None
                     from_loc = dep_locs.get('end', '')
                     if tid_interch:
                         dir_t = dir_vars[tid]
@@ -715,11 +729,9 @@ def generate(data: dict) -> str:
                             (tid_locs['start'], dir_t),
                             (tid_locs['end'],   f'~{dir_t}'),
                         ]:
-                            t_val = travel(ag, from_loc, to_loc) if ag else 0
-                            emit_constraint(w, tid, dep, t_val, base_g + [g_t])
+                            emit_dep_travel(w, tid, dep, from_loc, to_loc, [g_t])
                     else:
-                        t_val = travel(ag, from_loc, tid_locs.get('start', '')) if ag else 0
-                        emit_constraint(w, tid, dep, t_val, base_g)
+                        emit_dep_travel(w, tid, dep, from_loc, tid_locs.get('start', ''), [])
         else:
             bvars = []
             _tid_locs_or    = task_locs.get(tid, {})
@@ -730,10 +742,7 @@ def generate(data: dict) -> str:
                 dep_p = f'_p_{safe(dep)}'
                 _dep_locs_or    = task_locs.get(dep, {})
                 _dep_interch_or = _dep_locs_or.get('interchangeable', False) and dep in dir_vars
-                ca = common_agents(dep, tid, task_to_agents)
-                ag = ca[0] if ca else None
                 w(f'    {bv} = model.new_bool_var({(tid+"_after_"+dep)!r})')
-                base_g = [bv] + ([p_tid] if is_opt else [])
                 dep_ends = ([(_dep_locs_or.get('end', ''),   dir_vars[dep]),
                               (_dep_locs_or.get('start', ''), f'~{dir_vars[dep]}')]
                              if _dep_interch_or else
@@ -744,9 +753,8 @@ def generate(data: dict) -> str:
                                [(_tid_locs_or.get('start', ''), None)])
                 for from_loc, g_d in dep_ends:
                     for to_loc, g_t in tid_starts:
-                        t_val = travel(ag, from_loc, to_loc) if ag else 0
-                        guards = base_g + [x for x in [g_d, g_t] if x]
-                        emit_constraint(w, tid, dep, t_val, guards)
+                        emit_dep_travel(w, tid, dep, from_loc, to_loc,
+                                        [bv] + [x for x in [g_d, g_t] if x])
                 if dep_is_opt:
                     # Guard: solver may only "wait for dep" when dep is actually active.
                     # Without this, an inactive dep's ts/te=0 trivially satisfies the constraint.

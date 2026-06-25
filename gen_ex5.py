@@ -105,23 +105,41 @@ def main():
     _dir_Harvest_Row3 = model.new_bool_var('Harvest_Row3_dir')
 
     # ── Initial positioning (agent start → first task) ─────────────────
-    model.add(ts['Harvest_Row1'] >= 1).only_enforce_if(_p_Harvest_Row1)
-    model.add(ts['Harvest_Row2'] >= 1).only_enforce_if([_p_Harvest_Row2, _dir_Harvest_Row2])
-    model.add(ts['Harvest_Row2'] >= 2).only_enforce_if([_p_Harvest_Row2, ~_dir_Harvest_Row2])
-    model.add(ts['Harvest_Row1'] >= 1).only_enforce_if(_p_Harvest_Row1)
-    model.add(ts['Harvest_Row2'] >= 1).only_enforce_if([_p_Harvest_Row2, _dir_Harvest_Row2])
-    model.add(ts['Harvest_Row2'] >= 2).only_enforce_if([_p_Harvest_Row2, ~_dir_Harvest_Row2])
+    model.add(ts['Harvest_Row1'] >= 1).only_enforce_if(_p_Harvest_Row1_human1)
+    model.add(ts['Harvest_Row2'] >= 2).only_enforce_if([_p_Harvest_Row2_human1, _dir_Harvest_Row2])
+    model.add(ts['Harvest_Row2'] >= 2).only_enforce_if([_p_Harvest_Row2_human1, ~_dir_Harvest_Row2])
+    model.add(ts['Harvest_Row1'] >= 1).only_enforce_if(_p_Harvest_Row1_human2)
+    model.add(ts['Harvest_Row2'] >= 1).only_enforce_if([_p_Harvest_Row2_human2, _dir_Harvest_Row2])
+    model.add(ts['Harvest_Row2'] >= 2).only_enforce_if([_p_Harvest_Row2_human2, ~_dir_Harvest_Row2])
 
     # ── Dependencies ──────────────────────────────────────────────────
     _dep_Harvest_Row3_Harvest_Row1 = model.new_bool_var('Harvest_Row3_after_Harvest_Row1')
-    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, _dir_Harvest_Row3])
-    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, ~_dir_Harvest_Row3])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1'] + 2).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, _dir_Harvest_Row3, _p_Harvest_Row1_human1, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, _dir_Harvest_Row3, _p_Harvest_Row1_human1, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, _dir_Harvest_Row3, _p_Harvest_Row1_human2, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, _dir_Harvest_Row3, _p_Harvest_Row1_human2, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1'] + 2).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, ~_dir_Harvest_Row3, _p_Harvest_Row1_human1, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, ~_dir_Harvest_Row3, _p_Harvest_Row1_human1, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, ~_dir_Harvest_Row3, _p_Harvest_Row1_human2, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row1'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row1, ~_dir_Harvest_Row3, _p_Harvest_Row1_human2, _p_Harvest_Row3_human2])
     model.add_implication(_dep_Harvest_Row3_Harvest_Row1, _p_Harvest_Row1)
     _dep_Harvest_Row3_Harvest_Row2 = model.new_bool_var('Harvest_Row3_after_Harvest_Row2')
-    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, _dir_Harvest_Row3])
-    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, ~_dir_Harvest_Row3])
-    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, _dir_Harvest_Row3])
-    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, ~_dir_Harvest_Row3])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2'] + 1).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, _dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, _dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human1, _p_Harvest_Row3_human2])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human1])
+    model.add(ts['Harvest_Row3'] >= te['Harvest_Row2']).only_enforce_if([_dep_Harvest_Row3_Harvest_Row2, ~_dir_Harvest_Row2, ~_dir_Harvest_Row3, _p_Harvest_Row2_human2, _p_Harvest_Row3_human2])
     model.add_implication(_dep_Harvest_Row3_Harvest_Row2, _p_Harvest_Row2)
     model.add_bool_or([_dep_Harvest_Row3_Harvest_Row1, _dep_Harvest_Row3_Harvest_Row2])
     # ^ Harvest_Row3 starts after ANY active dep in ['Harvest_Row1', 'Harvest_Row2']
@@ -133,7 +151,7 @@ def main():
     # ── Pairwise travel (same-agent, no dep ordering) ────────────────
     # pairwise travel: Harvest_Row1 ↔ Harvest_Row2 (human1)
     _ord_Harvest_Row1_Harvest_Row2 = model.new_bool_var('Harvest_Row1_before_Harvest_Row2')
-    model.add(ts['Harvest_Row2'] >= te['Harvest_Row1'] + 1).only_enforce_if([_ord_Harvest_Row1_Harvest_Row2, _dir_Harvest_Row2, _p_Harvest_Row1_human1, _p_Harvest_Row2_human1])
+    model.add(ts['Harvest_Row2'] >= te['Harvest_Row1'] + 2).only_enforce_if([_ord_Harvest_Row1_Harvest_Row2, _dir_Harvest_Row2, _p_Harvest_Row1_human1, _p_Harvest_Row2_human1])
     model.add(ts['Harvest_Row2'] >= te['Harvest_Row1'] + 2).only_enforce_if([_ord_Harvest_Row1_Harvest_Row2, ~_dir_Harvest_Row2, _p_Harvest_Row1_human1, _p_Harvest_Row2_human1])
     model.add(ts['Harvest_Row1'] >= te['Harvest_Row2'] + 1).only_enforce_if([~_ord_Harvest_Row1_Harvest_Row2, _dir_Harvest_Row2, _p_Harvest_Row1_human1, _p_Harvest_Row2_human1])
     model.add(ts['Harvest_Row1'] >= te['Harvest_Row2'] + 1).only_enforce_if([~_ord_Harvest_Row1_Harvest_Row2, ~_dir_Harvest_Row2, _p_Harvest_Row1_human1, _p_Harvest_Row2_human1])
@@ -170,7 +188,7 @@ def main():
     _dir_vars     = {'Harvest_Row2': _dir_Harvest_Row2, 'Harvest_Row3': _dir_Harvest_Row3}
     _agent_init   = {'human1': 'l2', 'human2': 'l2'}
     _task_intra   = {'Harvest_Row1': ('l1l2', 1), 'Harvest_Row2': ('l3l4', 1)}
-    _agent_paths  = {('human1', 'l2', 'l4'): [('l2', 'l1', 1), ('l1', 'l4', 1)], ('human1', 'l4', 'l2'): [('l4', 'l1', 1), ('l1', 'l2', 1)], ('human2', 'l2', 'l4'): [('l2', 'l1', 1), ('l1', 'l4', 1)], ('human2', 'l4', 'l2'): [('l4', 'l1', 1), ('l1', 'l2', 1)]}
+    _agent_paths  = {('human1', 'l2', 'l3'): [('l2', 'l1', 1), ('l1', 'l3', 1)], ('human1', 'l2', 'l4'): [('l2', 'l1', 1), ('l1', 'l4', 1)], ('human1', 'l3', 'l2'): [('l3', 'l1', 1), ('l1', 'l2', 1)], ('human1', 'l4', 'l2'): [('l4', 'l1', 1), ('l1', 'l2', 1)], ('human2', 'l2', 'l4'): [('l2', 'l1', 1), ('l1', 'l4', 1)], ('human2', 'l4', 'l2'): [('l4', 'l1', 1), ('l1', 'l2', 1)]}
     for agent_id in agent_ivs:
         schedule = []
         for (tid, aid), presence in asg.items():

@@ -56,7 +56,7 @@
             {"id": "l1l2", "duration": 1},
             {"id": "l1l3", "duration": 1},
             {"id": "l1l4", "duration": 1},
-            {"id": "l2l3", "duration": 1},
+            {"id": "l2l3", "duration": 5},
             {"id": "l2l4", "duration": 100},
             {"id": "l3l4", "duration": 1}
         ]
@@ -99,7 +99,7 @@
     },
     "_expected": {
       "feasible": true,
-      "makespan": 10,
-      "_note": "human1 does Harvest_Row1 (ends t=4), human2 travels l2→l3 (travel counted in dep) and does Harvest_Row3 (t=5→10)"
+      "makespan": 9,
+      "_note": "human1 does HR1 (t=1→4), human2 does HR3 (t=4→9); cross-agent dep has no travel gap, human2 arrives l3 at t=1 independently"
     }
 }
