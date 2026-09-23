@@ -57,26 +57,36 @@
     {"id": "Deliver_Box3_HP", "start_location": "l6",  "end_location": "l10", "start_end_location_interchangeable": false, "description": "Human carries box from row3 end to handover point"},
     {"id": "Deliver_Box4_CP", "start_location": "l8",  "end_location": "l9",  "start_end_location_interchangeable": false, "description": "Human carries box from row4 end to collection point"},
     {"id": "Deliver_Box4_HP", "start_location": "l8",  "end_location": "l10", "start_end_location_interchangeable": false, "description": "Human carries box from row4 end to handover point"},
-    {"id": "Drone_Relay_A",   "start_location": "l10", "end_location": "l9",  "start_end_location_interchangeable": false, "description": "Drone carries boxes 1+2 from handover to collection"},
-    {"id": "Drone_Relay_B",   "start_location": "l10", "end_location": "l9",  "start_end_location_interchangeable": false, "description": "Drone carries boxes 3+4 from handover to collection (drone returns l9→l10 automatically between trips)"},
+    {"id": "Drone_Relay_Box1",   "start_location": "l10", "end_location": "l9",  "start_end_location_interchangeable": false, "description": "Drone carries boxes 1+2 from handover to collection"},
+    {"id": "Drone_Relay_Box2",   "start_location": "l10", "end_location": "l9",  "start_end_location_interchangeable": false, "description": "Drone carries boxes 3+4 from handover to collection (drone returns l9→l10 automatically between trips)"},
+    {"id": "Drone_Relay_Box3",   "start_location": "l10", "end_location": "l9",  "start_end_location_interchangeable": false, "description": "Drone carries boxes from handover to collection"},
+    {"id": "Drone_Relay_Box4",   "start_location": "l10", "end_location": "l9",  "start_end_location_interchangeable": false, "description": "Drone carries boxes from handover to collection "},
     {"id": "Tractor_Final",   "start_location": "l9",  "end_location": "l11", "start_end_location_interchangeable": false, "description": "Tractor delivers all boxes to final destination"}
   ],
 
   "task_graph": {
     "Harvest_Row1":    {"depends_on": [], "dependency_type": "AND"},
-    "Deliver_Box1":    {"depends_on": ["Harvest_Row1"], "dependency_type": "AND"},
+    "Deliver_Box1_CP": {"depends_on": ["Harvest_Row1"], "dependency_type": "AND"},
+    "Deliver_Box1_HP": {"depends_on": ["Harvest_Row1"], "dependency_type": "AND"},
     "Harvest_Row2":    {"depends_on": [], "dependency_type": "AND"},
-    "Deliver_Box2":    {"depends_on": ["Harvest_Row2"], "dependency_type": "AND"},
+    "Deliver_Box2_CP": {"depends_on": ["Harvest_Row2"], "dependency_type": "AND"},
+    "Deliver_Box2_HP": {"depends_on": ["Harvest_Row2"], "dependency_type": "AND"},
     "Harvest_Row3":    {"depends_on": [], "dependency_type": "AND"},
-    "Deliver_Box3":    {"depends_on": ["Harvest_Row3"], "dependency_type": "AND"},
+    "Deliver_Box3_CP": {"depends_on": ["Harvest_Row3"], "dependency_type": "AND"},
+    "Deliver_Box3_HP": {"depends_on": ["Harvest_Row3"], "dependency_type": "AND"},
     "Harvest_Row4":    {"depends_on": ["Deliver_Box3"], "dependency_type": "AND"},
-    "Deliver_Box4":    {"depends_on": ["Harvest_Row4"], "dependency_type": "AND"},
-    "Drone_Relay_A":   {"depends_on": ["Deliver_Box1_HP", "Deliver_Box2_HP"], "dependency_type": "AND",
-                        "_note": "derived-optional: runs only when box1 or box2 go via handover"},
-    "Drone_Relay_B":   {"depends_on": ["Drone_Relay_A", "Deliver_Box3_HP", "Deliver_Box4_HP"], "dependency_type": "AND",
-                        "_note": "derived-optional: triggered by box3/4 via HP; Drone_Relay_A dep enforces drone returns l9→l10 before starting second trip"},
-    "Tractor_Final":   {"depends_on": ["Deliver_Box1_CP", "Deliver_Box2_CP", "Deliver_Box3_CP", "Deliver_Box4_CP",
-                                      "Drone_Relay_A", "Drone_Relay_B"], "dependency_type": "AND"}
+    "Deliver_Box4_CP": {"depends_on": ["Harvest_Row4"], "dependency_type": "AND"},
+    "Deliver_Box4_HP": {"depends_on": ["Harvest_Row4"], "dependency_type": "AND"},
+    "Drone_Relay_Box1":   {"depends_on": ["Deliver_Box1_HP"], "dependency_type": "AND"},
+    "Drone_Relay_Box2":   {"depends_on": ["Deliver_Box2_HP"], "dependency_type": "AND"},
+    "Drone_Relay_Box3":   {"depends_on": ["Deliver_Box3_HP"], "dependency_type": "AND"},
+    "Drone_Relay_Box4":   {"depends_on": ["Deliver_Box4_HP"], "dependency_type": "AND"},
+    "Row1_done":  {"depends_on": ["Drone_Relay_Box1", "Deliver_Box1_CP"], "dependency_type": "OR"},
+    "Row2_done":  {"depends_on": ["Drone_Relay_Box2", "Deliver_Box2_CP"], "dependency_type": "OR"},
+    "Row3_done":  {"depends_on": ["Drone_Relay_Box3", "Deliver_Box3_CP"], "dependency_type": "OR"},
+    "Row4_done":  {"depends_on": ["Drone_Relay_Box4", "Deliver_Box4_CP"], "dependency_type": "OR"},
+
+    "Tractor_Final":   {"depends_on": ["Row1_done", "Row2_done", "Row3_done", "Row4_done"], "dependency_type": "AND"}
   },
 
   "agents": [
@@ -95,7 +105,7 @@
         {"id": "Deliver_Box2_HP", "duration": 2,  "fatigue": 1, "probability_of_success": 1.00, "number_of_retries": 3},
         {"id": "Deliver_Box3_CP", "duration": 2,  "fatigue": 1, "probability_of_success": 1.00, "number_of_retries": 3},
         {"id": "Deliver_Box3_HP", "duration": 2,  "fatigue": 1, "probability_of_success": 1.00, "number_of_retries": 3},
-        {"id": "Deliver_Box4_CP", "duration": 2,  "fatigue": 1, "probability_of_success": 1.00, "number_of_retries": 3},
+        {"id": "Deliver_Box4_CP", "duration": 300,  "fatigue": 1, "probability_of_success": 1.00, "number_of_retries": 3},
         {"id": "Deliver_Box4_HP", "duration": 2,  "fatigue": 1, "probability_of_success": 1.00, "number_of_retries": 3}
       ],
       "travel": [
@@ -127,12 +137,14 @@
       "description": "Drone — relays boxes from handover (l10) to collection (l9), returns between trips",
       "initial_location": "l10",
       "tasks": [
-        {"id": "Drone_Relay_A", "duration": 3, "fatigue": 0, "probability_of_success": 1.00, "number_of_retries": 3},
-        {"id": "Drone_Relay_B", "duration": 3, "fatigue": 0, "probability_of_success": 1.00, "number_of_retries": 3}
+        {"id": "Drone_Relay_Box1", "duration": 2, "fatigue": 0, "probability_of_success": 1.00, "number_of_retries": 3},
+        {"id": "Drone_Relay_Box2", "duration": 2, "fatigue": 0, "probability_of_success": 1.00, "number_of_retries": 3},
+        {"id": "Drone_Relay_Box3", "duration": 2, "fatigue": 0, "probability_of_success": 1.00, "number_of_retries": 3},
+        {"id": "Drone_Relay_Box4", "duration": 2, "fatigue": 0, "probability_of_success": 1.00, "number_of_retries": 3}
       ],
       "travel": [
-        {"id": "l10l9", "duration": 3},
-        {"id": "l9l10", "duration": 3}
+        {"id": "l10l9", "duration": 1},
+        {"id": "l9l10", "duration": 1}
       ]
     },
     {
@@ -150,6 +162,6 @@
 
   "constraints": {
     "tasks_to_be_completed": ["Tractor_Final"],
-    "max_duration": 300
+    "max_duration": 350
   }
 }
