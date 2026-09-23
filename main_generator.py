@@ -29,14 +29,15 @@ Objective: minimise completion time of tasks_to_be_completed.
 
 import heapq
 import json
+import os
 import sys
 from collections import defaultdict
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def load(path: str) -> dict:
-    with open(path) as f:
+def load(json_path: str) -> dict:
+    with open(json_path) as f:
         return json.load(f)
 
 
@@ -963,10 +964,14 @@ def main():
         print(f'Usage: python {sys.argv[0]} <problem.json> [output.py]')
         sys.exit(1)
 
-    in_path  = sys.argv[1]
-    out_path = sys.argv[2] if len(sys.argv) > 2 else 'generated_solver.py'
+    json_path  = sys.argv[1]
 
-    data = load(in_path)
+    #name of file
+    file_name = os.path.splitext(os.path.basename(json_path))[0]
+
+    out_path = sys.argv[2] if len(sys.argv) > 2 else f'{file_name}.py'
+
+    data = load(json_path)
     code = generate(data)
 
     with open(out_path, 'w') as f:
