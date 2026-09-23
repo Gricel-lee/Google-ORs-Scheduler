@@ -1,0 +1,860 @@
+{
+    "_comment_loc": "Locations",
+    "locations": [
+        {
+            "id": "l1",
+            "coordinates": {
+                "x": 0,
+                "y": 1
+            },
+            "description": "Row1 low end"
+        },
+        {
+            "id": "l2",
+            "coordinates": {
+                "x": 1,
+                "y": 1
+            },
+            "description": "Row1 high end"
+        },
+        {
+            "id": "l3",
+            "coordinates": {
+                "x": 0,
+                "y": 2
+            },
+            "description": "Row2 low end"
+        },
+        {
+            "id": "l4",
+            "coordinates": {
+                "x": 1,
+                "y": 2
+            },
+            "description": "Row2 high end"
+        }
+    ],
+    "_comment_paths": "Paths: all are bidirectional. Costs are added inside 'agents'. Note that agents can take any of these paths, but the cost will be 0 if not defined within the agent field.",
+    "paths": [
+        {
+            "id": "l1l2",
+            "start_location": "l1",
+            "end_location": "l2"
+        },
+        {
+            "id": "l1l3",
+            "start_location": "l1",
+            "end_location": "l3"
+        },
+        {
+            "id": "l1l4",
+            "start_location": "l1",
+            "end_location": "l4"
+        },
+        {
+            "id": "l2l3",
+            "start_location": "l2",
+            "end_location": "l3"
+        },
+        {
+            "id": "l2l4",
+            "start_location": "l2",
+            "end_location": "l4"
+        },
+        {
+            "id": "l3l4",
+            "start_location": "l3",
+            "end_location": "l4"
+        }
+    ],
+    "_comment_tasks": "Tasks: their start/end locations, and if they can be performed in reverse location order.",
+    "tasks": [
+        {
+            "id": "Harvest_Row1",
+            "start_location": "l1",
+            "end_location": "l2",
+            "start_end_location_interchangeable": true
+        },
+        {
+            "id": "HandleOverbox_Row1_human",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Pickbox_drone_after_human_Row1",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_human_Row1",
+            "start_location": "l2",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_drone_Row1",
+            "start_location": "l3",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Harvest_Row2",
+            "start_location": "l1",
+            "end_location": "l2",
+            "start_end_location_interchangeable": true
+        },
+        {
+            "id": "HandleOverbox_Row2_human",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Pickbox_drone_after_human_Row2",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_human_Row2",
+            "start_location": "l2",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_drone_Row2",
+            "start_location": "l3",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Harvest_Row3",
+            "start_location": "l1",
+            "end_location": "l2",
+            "start_end_location_interchangeable": true
+        },
+        {
+            "id": "HandleOverbox_Row3_human",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Pickbox_drone_after_human_Row3",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_human_Row3",
+            "start_location": "l2",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_drone_Row3",
+            "start_location": "l3",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Harvest_Row4",
+            "start_location": "l1",
+            "end_location": "l2",
+            "start_end_location_interchangeable": true
+        },
+        {
+            "id": "HandleOverbox_Row4_human",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Pickbox_drone_after_human_Row4",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_human_Row4",
+            "start_location": "l2",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_drone_Row4",
+            "start_location": "l3",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Harvest_Row5",
+            "start_location": "l1",
+            "end_location": "l2",
+            "start_end_location_interchangeable": true
+        },
+        {
+            "id": "HandleOverbox_Row5_human",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Pickbox_drone_after_human_Row5",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_human_Row5",
+            "start_location": "l2",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_drone_Row5",
+            "start_location": "l3",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Harvest_Row6",
+            "start_location": "l1",
+            "end_location": "l2",
+            "start_end_location_interchangeable": true
+        },
+        {
+            "id": "HandleOverbox_Row6_human",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Pickbox_drone_after_human_Row6",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_human_Row6",
+            "start_location": "l2",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_drone_Row6",
+            "start_location": "l3",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Harvest_Row7",
+            "start_location": "l1",
+            "end_location": "l2",
+            "start_end_location_interchangeable": true
+        },
+        {
+            "id": "HandleOverbox_Row7_human",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Pickbox_drone_after_human_Row7",
+            "start_location": "l3",
+            "end_location": "l3",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_human_Row7",
+            "start_location": "l2",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        },
+        {
+            "id": "Delivered_by_drone_Row7",
+            "start_location": "l3",
+            "end_location": "l4",
+            "start_end_location_interchangeable": false
+        }
+    ],
+    "_comment_task_graph": "Task graph: dependencies can be 'AND' for tasks to be completed before it starts; or 'OR', these do not have an ID associated to a task as they are 'virtual' tasks representing that one of their 'depends_on' tasks have to be done (see 'Delivered' as an example).",
+    "task_graph": {
+        "Harvest_Row1": {
+            "depends_on": [],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_human_Row1": {
+            "depends_on": [
+                "Harvest_Row1"
+            ],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_drone_Row1": {
+            "depends_on": [
+                "Pickbox_drone_after_human_Row1"
+            ],
+            "dependency_type": "AND"
+        },
+        "HandleOverbox_Row1_human": {
+            "depends_on": [
+                "Harvest_Row1"
+            ],
+            "dependency_type": "AND"
+        },
+        "Pickbox_drone_after_human_Row1": {
+            "depends_on": [
+                "HandleOverbox_Row1_human"
+            ],
+            "dependency_type": "AND"
+        },
+        "_Completed_Row1": {
+            "depends_on": [
+                "Delivered_by_drone_Row1",
+                "Delivered_by_human_Row1"
+            ],
+            "dependency_type": "OR"
+        },
+        "Harvest_Row2": {
+            "depends_on": [],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_human_Row2": {
+            "depends_on": [
+                "Harvest_Row2"
+            ],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_drone_Row2": {
+            "depends_on": [
+                "Pickbox_drone_after_human_Row2"
+            ],
+            "dependency_type": "AND"
+        },
+        "HandleOverbox_Row2_human": {
+            "depends_on": [
+                "Harvest_Row2"
+            ],
+            "dependency_type": "AND"
+        },
+        "Pickbox_drone_after_human_Row2": {
+            "depends_on": [
+                "HandleOverbox_Row2_human"
+            ],
+            "dependency_type": "AND"
+        },
+        "_Completed_Row2": {
+            "depends_on": [
+                "Delivered_by_drone_Row2",
+                "Delivered_by_human_Row2"
+            ],
+            "dependency_type": "OR"
+        },
+        "Harvest_Row3": {
+            "depends_on": [],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_human_Row3": {
+            "depends_on": [
+                "Harvest_Row3"
+            ],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_drone_Row3": {
+            "depends_on": [
+                "Pickbox_drone_after_human_Row3"
+            ],
+            "dependency_type": "AND"
+        },
+        "HandleOverbox_Row3_human": {
+            "depends_on": [
+                "Harvest_Row3"
+            ],
+            "dependency_type": "AND"
+        },
+        "Pickbox_drone_after_human_Row3": {
+            "depends_on": [
+                "HandleOverbox_Row3_human"
+            ],
+            "dependency_type": "AND"
+        },
+        "_Completed_Row3": {
+            "depends_on": [
+                "Delivered_by_drone_Row3",
+                "Delivered_by_human_Row3"
+            ],
+            "dependency_type": "OR"
+        },
+        "Harvest_Row4": {
+            "depends_on": [],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_human_Row4": {
+            "depends_on": [
+                "Harvest_Row4"
+            ],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_drone_Row4": {
+            "depends_on": [
+                "Pickbox_drone_after_human_Row4"
+            ],
+            "dependency_type": "AND"
+        },
+        "HandleOverbox_Row4_human": {
+            "depends_on": [
+                "Harvest_Row4"
+            ],
+            "dependency_type": "AND"
+        },
+        "Pickbox_drone_after_human_Row4": {
+            "depends_on": [
+                "HandleOverbox_Row4_human"
+            ],
+            "dependency_type": "AND"
+        },
+        "_Completed_Row4": {
+            "depends_on": [
+                "Delivered_by_drone_Row4",
+                "Delivered_by_human_Row4"
+            ],
+            "dependency_type": "OR"
+        },
+        "Harvest_Row5": {
+            "depends_on": [],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_human_Row5": {
+            "depends_on": [
+                "Harvest_Row5"
+            ],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_drone_Row5": {
+            "depends_on": [
+                "Pickbox_drone_after_human_Row5"
+            ],
+            "dependency_type": "AND"
+        },
+        "HandleOverbox_Row5_human": {
+            "depends_on": [
+                "Harvest_Row5"
+            ],
+            "dependency_type": "AND"
+        },
+        "Pickbox_drone_after_human_Row5": {
+            "depends_on": [
+                "HandleOverbox_Row5_human"
+            ],
+            "dependency_type": "AND"
+        },
+        "_Completed_Row5": {
+            "depends_on": [
+                "Delivered_by_drone_Row5",
+                "Delivered_by_human_Row5"
+            ],
+            "dependency_type": "OR"
+        },
+        "Harvest_Row6": {
+            "depends_on": [],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_human_Row6": {
+            "depends_on": [
+                "Harvest_Row6"
+            ],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_drone_Row6": {
+            "depends_on": [
+                "Pickbox_drone_after_human_Row6"
+            ],
+            "dependency_type": "AND"
+        },
+        "HandleOverbox_Row6_human": {
+            "depends_on": [
+                "Harvest_Row6"
+            ],
+            "dependency_type": "AND"
+        },
+        "Pickbox_drone_after_human_Row6": {
+            "depends_on": [
+                "HandleOverbox_Row6_human"
+            ],
+            "dependency_type": "AND"
+        },
+        "_Completed_Row6": {
+            "depends_on": [
+                "Delivered_by_drone_Row6",
+                "Delivered_by_human_Row6"
+            ],
+            "dependency_type": "OR"
+        },
+        "Harvest_Row7": {
+            "depends_on": [],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_human_Row7": {
+            "depends_on": [
+                "Harvest_Row7"
+            ],
+            "dependency_type": "AND"
+        },
+        "Delivered_by_drone_Row7": {
+            "depends_on": [
+                "Pickbox_drone_after_human_Row7"
+            ],
+            "dependency_type": "AND"
+        },
+        "HandleOverbox_Row7_human": {
+            "depends_on": [
+                "Harvest_Row7"
+            ],
+            "dependency_type": "AND"
+        },
+        "Pickbox_drone_after_human_Row7": {
+            "depends_on": [
+                "HandleOverbox_Row7_human"
+            ],
+            "dependency_type": "AND"
+        },
+        "_Completed_Row7": {
+            "depends_on": [
+                "Delivered_by_drone_Row7",
+                "Delivered_by_human_Row7"
+            ],
+            "dependency_type": "OR"
+        }
+    },
+    "_comment_agents": "Agents",
+    "agents": [
+        {
+            "id": "human1",
+            "description": "human worker 1",
+            "initial_location": "l2",
+            "tasks": [
+                {
+                    "id": "Harvest_Row1",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_human_Row1",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "HandleOverbox_Row1_human",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Harvest_Row2",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_human_Row2",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "HandleOverbox_Row2_human",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Harvest_Row3",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_human_Row3",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "HandleOverbox_Row3_human",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Harvest_Row4",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_human_Row4",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "HandleOverbox_Row4_human",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Harvest_Row5",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_human_Row5",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "HandleOverbox_Row5_human",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Harvest_Row6",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_human_Row6",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "HandleOverbox_Row6_human",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Harvest_Row7",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_human_Row7",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "HandleOverbox_Row7_human",
+                    "duration": 2,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                }
+            ],
+            "travel": [
+                {
+                    "id": "l1l2",
+                    "duration": 1
+                },
+                {
+                    "id": "l1l3",
+                    "duration": 1
+                },
+                {
+                    "id": "l1l4",
+                    "duration": 1
+                },
+                {
+                    "id": "l2l3",
+                    "duration": 5
+                },
+                {
+                    "id": "l2l4",
+                    "duration": 10
+                },
+                {
+                    "id": "l3l4",
+                    "duration": 1
+                }
+            ]
+        },
+        {
+            "id": "drone",
+            "description": "human worker 2",
+            "initial_location": "l2",
+            "tasks": [
+                {
+                    "id": "Pickbox_drone_after_human_Row1",
+                    "duration": 0,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_drone_Row1",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Pickbox_drone_after_human_Row2",
+                    "duration": 0,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_drone_Row2",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Pickbox_drone_after_human_Row3",
+                    "duration": 0,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_drone_Row3",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Pickbox_drone_after_human_Row4",
+                    "duration": 0,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_drone_Row4",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Pickbox_drone_after_human_Row5",
+                    "duration": 0,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_drone_Row5",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Pickbox_drone_after_human_Row6",
+                    "duration": 0,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_drone_Row6",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Pickbox_drone_after_human_Row7",
+                    "duration": 0,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                },
+                {
+                    "id": "Delivered_by_drone_Row7",
+                    "duration": 20,
+                    "fatigue": 3,
+                    "probability_of_success": 1.0,
+                    "number_of_retries": 3
+                }
+            ],
+            "travel": [
+                {
+                    "id": "l1l2",
+                    "duration": 1
+                },
+                {
+                    "id": "l1l3",
+                    "duration": 1
+                },
+                {
+                    "id": "l1l4",
+                    "duration": 1
+                },
+                {
+                    "id": "l2l3",
+                    "duration": 1
+                },
+                {
+                    "id": "l2l4",
+                    "duration": 15
+                },
+                {
+                    "id": "l3l4",
+                    "duration": 1
+                }
+            ]
+        }
+    ],
+    "_comment_mission_constraints": "Define tasks from 'task_graph' to be completed, and mission constraints",
+    "constraints": {
+        "tasks_to_be_completed": [
+            "_Completed_Row1",
+            "_Completed_Row2",
+            "_Completed_Row3",
+            "_Completed_Row4",
+            "_Completed_Row5",
+            "_Completed_Row6",
+            "_Completed_Row7"
+        ],
+        "mission_probability_of_success": 0.95,
+        "min_assignment_probability": 0.5,
+        "max_duration": 350
+    }
+}

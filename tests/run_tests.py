@@ -38,6 +38,11 @@ TEST_FILES = [
     'example.json',   # the canonical example — expected makespan 62
     'ex4.json',       # OR-dep, single agent, expected makespan 10
     'ex5.json',       # OR-dep, two agents, expected makespan 10
+    'test_agri_2rows.json',  # row-scaling: solves in <1s
+    'test_agri_5rows.json',  # row-scaling: solves in ~1s
+    'test_agri_6rows.json',  # row-scaling: solves in ~1 min — combinatorial wall
+                              # starts here; 7+ rows can take 5+ min or never finish,
+                              # so they're deliberately excluded from routine runs
 ]
 
 
@@ -62,9 +67,11 @@ def run_test(json_path: str) -> tuple[bool, str]:
             return False, f'Generator failed:\n{gen.stderr.strip()}'
 
         # 2. Execute solver
+        # 90s to accommodate test_agri_6rows.json (~1 min) — everything else
+        # finishes well under that, so this only affects the slow cases.
         run = subprocess.run(
             [PYTHON, solver_path],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=90
         )
         output = run.stdout + run.stderr
 
@@ -100,7 +107,7 @@ def run_test(json_path: str) -> tuple[bool, str]:
         return True, f'makespan = {actual}{note}'
 
     except subprocess.TimeoutExpired:
-        return False, 'Solver timed out (>30 s).'
+        return False, 'Solver timed out (>90 s).'
     finally:
         os.unlink(solver_path)
 

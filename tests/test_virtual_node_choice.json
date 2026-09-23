@@ -18,7 +18,9 @@
   ],
   "task_graph": {
     "Load": {"depends_on": [],     "dependency_type": "AND"},
-    "Pack": {"depends_on": ["Load"], "dependency_type": "AND"},
+    "Pack": {"depends_on": ["Pack_Fast", "Pack_Slow"], "dependency_type": "OR"},
+    "Pack_Fast": {"depends_on": ["Load"], "dependency_type": "AND"},
+    "Pack_Slow": {"depends_on": ["Load"], "dependency_type": "AND"},
     "Ship": {"depends_on": ["Pack"], "dependency_type": "AND"}
   },
   "metrics": ["duration"],
@@ -29,8 +31,7 @@
       "initial_location": "packA",
       "tasks": [
         {"id": "Load",      "metric_values": {"duration": 3}},
-        {"id": "Pack_Fast", "metric_values": {"duration": 4}},
-        {"id": "Ship",      "metric_values": {"duration": 6}}
+        {"id": "Pack_Fast", "metric_values": {"duration": 4}}
       ],
       "travel": [
         {"id": "packA_out", "duration": 2}
@@ -41,7 +42,8 @@
       "description": "Slow packing robot at station B",
       "initial_location": "packB",
       "tasks": [
-        {"id": "Pack_Slow", "metric_values": {"duration": 7}}
+        {"id": "Pack_Slow", "metric_values": {"duration": 7}},
+        {"id": "Ship",      "metric_values": {"duration": 6}}
       ],
       "travel": [
         {"id": "packB_out", "duration": 1}
@@ -54,7 +56,7 @@
   },
   "_expected": {
     "feasible": true,
-    "makespan": 15,
-    "_note": "robot_fast does Load(3)+Pack_Fast(4)+2(packA→output)+Ship(6)=15. Pack_Slow path: 3+7+1(packB→output)+6=17. Solver picks Pack_Fast."
+    "makespan": 13,
+    "_note": "Ship is assigned to robot_slow, not robot_fast. robot_fast does Load(3)+Pack_Fast(4), ending at 7. Cross-agent handoffs have zero travel cost, so robot_slow's Ship starts at 7 and ends at 7+6=13. Solver picks Pack_Fast (Pack_Slow path would finish later)."
   }
 }

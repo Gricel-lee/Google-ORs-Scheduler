@@ -21,7 +21,9 @@
   ],
   "task_graph": {
     "Collect":        {"depends_on": [],                               "dependency_type": "AND"},
-    "Deliver":        {"depends_on": ["Collect"],                      "dependency_type": "AND"},
+    "Deliver":        {"depends_on": ["Deliver_Direct", "Deliver_Relay"], "dependency_type": "OR"},
+    "Deliver_Direct": {"depends_on": ["Collect"],                      "dependency_type": "AND"},
+    "Deliver_Relay":  {"depends_on": ["Collect"],                      "dependency_type": "AND"},
     "Transfer":       {"depends_on": ["Deliver_Relay"],                "dependency_type": "AND"},
     "Finalize":       {"depends_on": ["Deliver_Direct", "Transfer"],   "dependency_type": "AND"}
   },
