@@ -983,7 +983,7 @@ def generate(data: dict, json_path: str = None) -> str:
     w('            prev_e, prev_loc = e, el')
     w('        print()')
     w()
-    w('    plan_path = os.path.splitext(os.path.abspath(__file__))[0] + "plan.txt"')
+    w('    plan_path = os.path.splitext(os.path.abspath(__file__))[0] + "_plan.txt"')
     w('    with open(plan_path, "w") as f:')
     w('        f.write("SequentialPlan:\\n" + "\\n".join(plan_lines) + "\\n")')
     w('    print(f"Plan written to: {plan_path}")')
