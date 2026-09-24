@@ -180,11 +180,6 @@ def collect_required(task_graph: dict, targets: list) -> set:
     return required
 
 
-def find_subtasks(virtual_id: str, concrete_set: set) -> list:
-    """Concrete tasks whose IDs start with virtual_id + '_'."""
-    return sorted(t for t in concrete_set if t.startswith(virtual_id + '_'))
-
-
 def find_or_optional(task_graph: dict, targets: list, required: set) -> set:
     """Tasks reachable only via OR-dep edges — not force-required by any AND chain.
     These become optional interval vars; AddBoolOr enforces at least one per OR group runs."""
@@ -215,7 +210,8 @@ def classify_nodes(required: set, task_to_agents: dict, task_graph: dict,
 
     optional_subs: set = set()
     for vid in virtual:
-        optional_subs.update(find_subtasks(vid, concrete))
+        alts = [d for d in task_graph.get(vid, {}).get('depends_on', []) if d in concrete]
+        optional_subs.update(alts)
 
     targets_set = targets or set()
     derived_optional: set = set()
@@ -234,29 +230,7 @@ def classify_nodes(required: set, task_to_agents: dict, task_graph: dict,
 
 # ── Code generation ───────────────────────────────────────────────────────────
 
-def augment_task_graph(task_graph: dict, task_to_agents: dict) -> dict:
-    """
-    Concrete subtasks of virtual nodes inherit their parent's dependencies
-    when they have no entry of their own in the task_graph.
-
-    Example: if task_graph has "Deliver_Box1" -> depends_on ["Harvest_Row1"]
-    and concrete agents can perform "Deliver_Box1_CP" and "Deliver_Box1_HP",
-    both subtasks get depends_on ["Harvest_Row1"] added to the graph so
-    collect_required can reach the harvest tasks from the target chain.
-    """
-    augmented = {k: dict(v) for k, v in task_graph.items()}  # shallow copy
-    for node_id, node in task_graph.items():
-        subs = find_subtasks(node_id, set(task_to_agents))
-        for st in subs:
-            if st not in augmented:
-                augmented[st] = {
-                    'depends_on':      list(node.get('depends_on', [])),
-                    'dependency_type': node.get('dependency_type', 'AND'),
-                }
-    return augmented
-
-
-def generate(data: dict) -> str:
+def generate(data: dict, json_path: str = None) -> str:
     agents_raw  = data['agents']
     task_graph  = data.get('task_graph', {})
     constraints = data.get('constraints', {})
@@ -266,34 +240,69 @@ def generate(data: dict) -> str:
     task_to_agents, agent_travel = parse_agents(agents_raw)
     agent_ids   = [a['id'] for a in agents_raw]
 
-    # Augment task_graph so concrete subtasks inherit virtual-parent deps,
-    # allowing collect_required to reach the full dependency chain.
-    task_graph = augment_task_graph(task_graph, task_to_agents)
-
-    required = collect_required(task_graph, targets)
-
-    # Pull virtual parent nodes into required whenever a concrete subtask is already there.
-    # (e.g. Tractor_Final depends directly on Deliver_Box2_CP, so Deliver_Box2 is never
-    #  visited by collect_required; but it must still be classified as virtual.)
-    virtual_nodes_in_graph = {nid for nid in task_graph if nid not in task_to_agents}
-    for tid in list(required):
+    # Validate the user-authored graph. A task_graph node is "virtual" (an abstract
+    # choice point, e.g. "Delivered") when its id has no agent assignment. Its
+    # depends_on list IS the set of concrete alternatives to choose exactly one
+    # of — not a prerequisite chain — so it must be non-empty and combined with
+    # "OR" (each alternative carries its own prerequisites as its own task_graph
+    # entry, e.g. "Delivered_by_human_Row1": {"depends_on": ["Harvest_Row1"], ...}).
+    #
+    # Conversely, a concrete task (one agents can actually perform) must combine
+    # its dependencies with "AND" — "OR" on a concrete task's dependency edge
+    # makes find_or_optional() treat that dependency as skippable rather than
+    # mandatory, silently dropping required constraints.
+    for tid, tnode in task_graph.items():
+        dep_type = tnode.get('dependency_type', 'AND')
         if tid in task_to_agents:
-            for vid in virtual_nodes_in_graph:
-                if tid.startswith(vid + '_'):
-                    required.add(vid)
+            if dep_type == 'OR':
+                sys.exit(
+                    f'Task: {tid} must not be defined with "dependency_type": "OR" — '
+                    f'"OR" is only allowed for virtual tasks (an id X with no agent '
+                    f'assignment, whose "depends_on" lists the concrete alternatives '
+                    f'to choose from). See task_graph in {json_path or "<input JSON>"}'
+                )
+        else:
+            depends_on = tnode.get('depends_on', [])
+            if not depends_on or dep_type != 'OR':
+                sys.exit(
+                    f'Virtual task {tid!r} cannot have empty "depends_on" and must be '
+                    f'defined with "dependency_type": "OR" (got depends_on={depends_on!r}, '
+                    f'dependency_type={dep_type!r}). Its "depends_on" must list the concrete '
+                    f'alternatives to choose from. See task_graph in {json_path or "<input JSON>"}'
+                )
 
-    # Forward pass: for each virtual node already in required, add its concrete subtasks.
-    # (e.g. a dependency chain reaches 'Pack' (virtual) but not 'Pack_Fast'/'Pack_Slow'
-    #  directly — without this, the subtasks are never discovered.)
-    for vid in list(virtual_nodes_in_graph & required):
-        for tid in task_to_agents:
-            if tid.startswith(vid + '_'):
-                required.add(tid)
+    # Reverse lookup: concrete/virtual id -> the virtual parent(s) that list it as
+    # an alternative in their own depends_on. Used below to pull a virtual parent
+    # into `required` whenever one of its alternatives is required some other way
+    # (e.g. a task depends directly on one specific alternative, bypassing the choice).
+    belongs_to_parent: dict = defaultdict(list)
+    for vid, vnode in task_graph.items():
+        if vid not in task_to_agents:
+            for alt in vnode.get('depends_on', []):
+                belongs_to_parent[alt].append(vid)
+
+    # Fixed-point closure: backward-collect dependencies, then pull in any virtual
+    # parent whose alternative just became required. A virtual parent's own
+    # depends_on IS its alternatives, so collect_required's backward walk already
+    # discovers them once the parent itself is required — no separate forward
+    # pass is needed the way name-prefix matching used to require.
+    required: set = set()
+    changed = True
+    while changed:
+        before = set(required)
+        required |= collect_required(task_graph, list(targets) + list(required))
+        for tid in list(required):
+            for vid in belongs_to_parent.get(tid, []):
+                required.add(vid)
+        changed = required != before
 
     concrete, virtual, derived_optional = classify_nodes(required, task_to_agents, task_graph, set(targets))
 
-    # Subtask relationships
-    subtask_map: dict = {v: find_subtasks(v, concrete) for v in virtual}
+    # Subtask relationships: a virtual node's alternatives are its own depends_on.
+    subtask_map: dict = {
+        v: [d for d in task_graph.get(v, {}).get('depends_on', []) if d in concrete]
+        for v in virtual
+    }
     belongs_to:  dict = {s: v for v, subs in subtask_map.items() for s in subs}
     optional_subs = set(belongs_to)          # subtasks of virtual nodes
     or_optional   = (find_or_optional(task_graph, targets, required)
@@ -386,6 +395,7 @@ def generate(data: dict) -> str:
         L.append(line)
 
     w('from ortools.sat.python import cp_model')
+    w('import os')
     w()
     w('# ─────────────────────────────────────────────────────────────────────')
     w('# Auto-generated CP-SAT solver')
@@ -672,6 +682,12 @@ def generate(data: dict) -> str:
     for tid, node in task_graph.items():
         if tid not in required:
             continue
+        if tid in virtual:
+            # A virtual node's depends_on lists its alternatives, not prerequisites —
+            # its ts/te are already bound to whichever alternative runs (see "Virtual
+            # nodes" section above). Emitting a precedence constraint here too would
+            # contradict that binding (ts[V] == ts[alt] but also ts[V] >= te[alt]).
+            continue
         deps = [d for d in node.get('depends_on', []) if d in required]
         if not deps:
             continue
@@ -687,6 +703,19 @@ def generate(data: dict) -> str:
             for dep in deps:
                 dep_locs   = task_locs.get(dep, {})
                 dep_interch = dep_locs.get('interchangeable', False) and dep in dir_vars
+
+                # An AND dependency on an or_optional task must force that task's
+                # presence — otherwise the solver can leave dep unscheduled and
+                # satisfy the (guarded-on-presence) ordering constraint vacuously.
+                # The OR-branch already does this via or_dep_bvars; the AND-branch
+                # needs the same safeguard since it has no per-edge "did I use this"
+                # bool to hang the reverse-implication off of.
+                if dep in or_optional:
+                    dep_p = f'_p_{safe(dep)}'
+                    if is_opt:
+                        w(f'    model.add_implication({p_tid}, {dep_p})')
+                    else:
+                        w(f'    model.add({dep_p} == 1)')
 
                 if dep in virtual:
                     # Expand virtual dep → per-subtask constraints with travel
@@ -916,6 +945,7 @@ def generate(data: dict) -> str:
     w(f'    _agent_init   = {agent_init_literal}')
     w(f'    _task_intra   = {task_intra_literal}')
     w(f'    _agent_paths  = {agent_paths_literal}')
+    w('    plan_lines = []')
     w('    for agent_id in agent_ivs:')
     w('        schedule = []')
     w('        for (tid, aid), presence in asg.items():')
@@ -941,14 +971,22 @@ def generate(data: dict) -> str:
     w('                    t = prev_e')
     w('                    for h_from, h_to, h_dur in hops:')
     w('                        print(f"  [{t:02d}→{t+h_dur:02d}] Travelling  ({h_from} → {h_to})")')
+    w('                        plan_lines.append(f"    move({agent_id}, {h_from}, {h_to}) [{t:02d}, {t+h_dur:02d}]")')
     w('                        t += h_dur')
     w('                else:')
     w('                    print(f"  [{prev_e:02d}→{s:02d}] Travelling  ({prev_loc} → {sl})")')
+    w('                    plan_lines.append(f"    move({agent_id}, {prev_loc}, {sl}) [{prev_e:02d}, {s:02d}]")')
     w('            intra = _task_intra.get(tid)')
     w('            intra_str = f" [task required distance {intra[1]}]" if intra else ""')
     w('            print(f"  [{s:02d}→{e:02d}] {tid} ({sl} → {el}) {intra_str}")')
+    w('            plan_lines.append(f"    dotask({agent_id}, {tid}, {sl}, {el}) [{s:02d}, {e:02d}]")')
     w('            prev_e, prev_loc = e, el')
     w('        print()')
+    w()
+    w('    plan_path = os.path.splitext(os.path.abspath(__file__))[0] + "plan.txt"')
+    w('    with open(plan_path, "w") as f:')
+    w('        f.write("SequentialPlan:\\n" + "\\n".join(plan_lines) + "\\n")')
+    w('    print(f"Plan written to: {plan_path}")')
     w()
     w()
     w("if __name__ == '__main__':")
@@ -972,7 +1010,7 @@ def main():
     out_path = sys.argv[2] if len(sys.argv) > 2 else f'{file_name}.py'
 
     data = load(json_path)
-    code = generate(data)
+    code = generate(data, json_path)
 
     with open(out_path, 'w') as f:
         f.write(code)

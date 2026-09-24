@@ -130,6 +130,10 @@ select option { background: #1a1f2e; }
           <div class="fg"><label>ID</label><input id="loc-id" placeholder="l8"></div>
           <div class="fg"><label>Description</label><input id="loc-desc" placeholder="Field corner"></div>
         </div>
+        <div class="row">
+          <div class="fg"><label>X</label><input id="loc-x" type="number" step="any" placeholder="0"></div>
+          <div class="fg"><label>Y</label><input id="loc-y" type="number" step="any" placeholder="0"></div>
+        </div>
         <div class="form-actions">
           <button class="btn btn-primary btn-sm" onclick="addLocation()">Add</button>
         </div>
@@ -141,10 +145,7 @@ select option { background: #1a1f2e; }
     <div id="panel-paths" class="panel">
       <div class="add-form" id="form-path">
         <h3>Add Path</h3>
-        <div class="row">
-          <div class="fg"><label>ID</label><input id="path-id" placeholder="l1l8"></div>
-          <div class="fg"><label>Distance</label><input id="path-dist" type="number" min="0" placeholder="1"></div>
-        </div>
+        <div class="fg"><label>ID</label><input id="path-id" placeholder="l1l8"></div>
         <div class="row">
           <div class="fg"><label>From</label><select id="path-from"></select></div>
           <div class="fg"><label>To</label><select id="path-to"></select></div>
@@ -207,7 +208,9 @@ select option { background: #1a1f2e; }
           <div class="fg"><label>Max Duration (min)</label><input id="c-max-dur" type="number" min="0" oninput="updateConstraint('max_duration', +this.value)"></div>
           <div class="fg"><label>Mission Probability of Success</label><input id="c-mission-prob" type="number" min="0" max="1" step="0.01" oninput="updateConstraint('mission_probability_of_success', +this.value)"></div>
           <div class="fg"><label>Min Assignment Probability</label><input id="c-min-prob" type="number" min="0" max="1" step="0.01" oninput="updateConstraint('min_assignment_probability', +this.value)"></div>
-          <div class="fg"><label>Target Tasks (comma-separated)</label><input id="c-targets" placeholder="Tractor_Final" oninput="updateTargets(this.value)"></div>
+          <div class="fg"><label>Target Tasks</label>
+            <div id="c-targets-list" style="max-height:220px;overflow-y:auto;background:#0f1117;border:1px solid #374151;border-radius:4px;padding:8px"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -221,6 +224,9 @@ select option { background: #1a1f2e; }
       <button class="tool-btn"        id="tool-addPath" onclick="setTool('addPath')">&#8594; Path</button>
     </div>
     <div class="canvas-hint" id="canvas-hint">Drag locations to position them</div>
+    <div style="position:absolute;bottom:10px;left:50%;transform:translateX(-50%)">
+      <button class="tool-btn" onclick="openBackgroundSettingsModal()">⚙ Background Settings</button>
+    </div>
     <div class="legend">
       <div class="legend-item"><div class="leg-circle" style="background:#3b82f6"></div>Location</div>
       <div class="legend-item"><div class="leg-circle" style="background:#f59e0b"></div>Selected</div>
@@ -252,6 +258,12 @@ const state = {
 const pos = {};
 
 let bgImage    = null;
+let bgRect     = { x0: 0, y0: 0, x1: 1, y1: 1 };  // background image rect, normalised [0..1]
+let bgResizeMode = false;   // when true, bgRect's 4 corners (and body) become draggable
+let bgDragCorner = null;    // 'tl'|'tr'|'bl'|'br' currently being dragged, or null
+let bgDragMove   = null;    // {ox, oy} pixel offset from mouse to bgRect's top-left, while translating the whole image
+let showGrid   = true;      // coordinate-aligned grid overlay
+let gridSpacing = 0.1;      // grid line spacing, in the same units as loc.coordinates
 let selLoc     = null;   // selected location id
 let hovTask    = null;   // hovered task id (for start/end highlight)
 let tool       = 'select';
@@ -284,6 +296,88 @@ function px(locId) {
   return { x: p.x * canvas.width, y: p.y * canvas.height };
 }
 
+// Coordinate units (same space as loc.coordinates) -> canvas pixels, using
+// the current layoutBounds transform (see recomputeLayout/posToCoordinate).
+function coordToNorm(cx, cy) {
+  const { minX, maxX, minY, maxY, pad } = layoutBounds;
+  const rx = maxX - minX || 1, ry = maxY - minY || 1;
+  return {
+    x: pad + ((cx - minX) / rx) * (1 - 2*pad),
+    y: pad + ((cy - minY) / ry) * (1 - 2*pad)
+  };
+}
+
+function coordToPx(cx, cy) {
+  const n = coordToNorm(cx, cy);
+  return { x: n.x * canvas.width, y: n.y * canvas.height };
+}
+
+function drawGrid() {
+  if (!showGrid || !(gridSpacing > 0)) return;
+  const tl = posToCoordinate({ x: 0, y: 0 });
+  const br = posToCoordinate({ x: 1, y: 1 });
+  const minX = Math.min(tl.x, br.x), maxX = Math.max(tl.x, br.x);
+  const minY = Math.min(tl.y, br.y), maxY = Math.max(tl.y, br.y);
+  const startX = Math.floor(minX / gridSpacing) * gridSpacing;
+  const startY = Math.floor(minY / gridSpacing) * gridSpacing;
+  ctx.save();
+  ctx.strokeStyle = bgImage ? 'rgba(255,255,255,0.35)' : '#e2e8f0';
+  ctx.lineWidth = 1;
+  for (let gx = startX; gx <= maxX; gx += gridSpacing) {
+    const p1 = coordToPx(gx, minY), p2 = coordToPx(gx, maxY);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+  }
+  for (let gy = startY; gy <= maxY; gy += gridSpacing) {
+    const p1 = coordToPx(minX, gy), p2 = coordToPx(maxX, gy);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function bgCorners() {
+  const W = canvas.width, H = canvas.height;
+  return {
+    tl: { x: bgRect.x0 * W, y: bgRect.y0 * H },
+    tr: { x: bgRect.x1 * W, y: bgRect.y0 * H },
+    bl: { x: bgRect.x0 * W, y: bgRect.y1 * H },
+    br: { x: bgRect.x1 * W, y: bgRect.y1 * H },
+  };
+}
+
+function bgPxRect() {
+  const W = canvas.width, H = canvas.height;
+  const x0 = bgRect.x0 * W, x1 = bgRect.x1 * W, y0 = bgRect.y0 * H, y1 = bgRect.y1 * H;
+  return { left: Math.min(x0,x1), right: Math.max(x0,x1), top: Math.min(y0,y1), bottom: Math.max(y0,y1) };
+}
+
+function hitBgHandle(x, y) {
+  const HANDLE = 9;
+  const hit = Object.entries(bgCorners()).find(([, c]) => Math.abs(x - c.x) <= HANDLE && Math.abs(y - c.y) <= HANDLE);
+  return hit ? hit[0] : null;
+}
+
+function hitBgBody(x, y) {
+  const r = bgPxRect();
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
+function drawBgHandles() {
+  const W = canvas.width, H = canvas.height;
+  ctx.save();
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(bgRect.x0 * W, bgRect.y0 * H, (bgRect.x1 - bgRect.x0) * W, (bgRect.y1 - bgRect.y0) * H);
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#f59e0b';
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 2;
+  for (const c of Object.values(bgCorners())) {
+    ctx.beginPath(); ctx.rect(c.x - 7, c.y - 7, 14, 14); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function agentEmoji(id) {
   const l = id.toLowerCase();
   if (l.includes('drone')) return '🚁';
@@ -299,16 +393,14 @@ function render() {
   // Background
   if (bgImage) {
     ctx.globalAlpha = 0.85;
-    ctx.drawImage(bgImage, 0, 0, W, H);
+    ctx.drawImage(bgImage, bgRect.x0 * W, bgRect.y0 * H, (bgRect.x1 - bgRect.x0) * W, (bgRect.y1 - bgRect.y0) * H);
     ctx.globalAlpha = 1;
   } else {
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
-    for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
   }
+  drawGrid();
+  if (bgResizeMode && bgImage) drawBgHandles();
 
   // Paths
   for (const path of state.paths) {
@@ -319,16 +411,6 @@ function render() {
     ctx.strokeStyle = bgImage ? 'rgba(100,116,139,0.9)' : '#94a3b8';
     ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-    ctx.restore();
-    // Distance label
-    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-    ctx.save();
-    ctx.fillStyle = bgImage ? 'rgba(255,255,255,0.9)' : '#64748b';
-    ctx.font = '10px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (path.distance != null) {
-      if (bgImage) { ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillRect(mx-10, my-7, 20, 13); ctx.fillStyle='#fff'; }
-      ctx.fillText(path.distance, mx, my);
-    }
     ctx.restore();
   }
 
@@ -440,11 +522,33 @@ function hitLoc(mx, my) {
 canvas.addEventListener('mousemove', e => {
   const {x, y} = canvasXY(e);
   _mousePos = {x, y};
+  if (bgDragCorner) {
+    const nx = Math.max(0, Math.min(1, x / canvas.width));
+    const ny = Math.max(0, Math.min(1, y / canvas.height));
+    if (bgDragCorner === 'tl') { bgRect.x0 = nx; bgRect.y0 = ny; }
+    if (bgDragCorner === 'tr') { bgRect.x1 = nx; bgRect.y0 = ny; }
+    if (bgDragCorner === 'bl') { bgRect.x0 = nx; bgRect.y1 = ny; }
+    if (bgDragCorner === 'br') { bgRect.x1 = nx; bgRect.y1 = ny; }
+    render(); return;
+  }
+  if (bgDragMove) {
+    const w = bgRect.x1 - bgRect.x0, h = bgRect.y1 - bgRect.y0;
+    const nx0 = (x - bgDragMove.ox) / canvas.width;
+    const ny0 = (y - bgDragMove.oy) / canvas.height;
+    bgRect = { x0: nx0, y0: ny0, x1: nx0 + w, y1: ny0 + h };
+    render(); return;
+  }
   if (dragging) {
     pos[dragging.id] = { x: (x - dragging.ox) / canvas.width, y: (y - dragging.oy) / canvas.height };
     pos[dragging.id].x = Math.max(0.01, Math.min(0.99, pos[dragging.id].x));
     pos[dragging.id].y = Math.max(0.01, Math.min(0.99, pos[dragging.id].y));
     render(); return;
+  }
+  if (bgResizeMode && bgImage) {
+    const CURSORS = { tl: 'nwse-resize', br: 'nwse-resize', tr: 'nesw-resize', bl: 'nesw-resize' };
+    const handle = hitBgHandle(x, y);
+    if (handle) { canvas.style.cursor = CURSORS[handle]; return; }
+    if (hitBgBody(x, y)) { canvas.style.cursor = 'move'; return; }
   }
   // Tooltip on hover
   const loc = hitLoc(x, y);
@@ -476,6 +580,17 @@ canvas.addEventListener('mouseleave', () => {
 canvas.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
   const {x, y} = canvasXY(e);
+
+  if (bgResizeMode && bgImage) {
+    const handle = hitBgHandle(x, y);
+    if (handle) { bgDragCorner = handle; return; }
+    if (hitBgBody(x, y)) {
+      const r = bgPxRect();
+      bgDragMove = { ox: x - r.left, oy: y - r.top };
+      return;
+    }
+  }
+
   const loc = hitLoc(x, y);
 
   if (tool === 'select') {
@@ -493,8 +608,9 @@ canvas.addEventListener('mousedown', e => {
     if (!id || !id.trim()) return;
     if (state.locations.find(l => l.id === id.trim())) { alert('ID already exists'); return; }
     const desc = prompt('Description (optional):') || '';
-    state.locations.push({ id: id.trim(), description: desc, coordinates: { x: 0, y: 0 } });
-    pos[id.trim()] = { x: x / canvas.width, y: y / canvas.height };
+    const coords = posToCoordinate({ x: x / canvas.width, y: y / canvas.height });
+    state.locations.push({ id: id.trim(), description: desc, coordinates: coords });
+    recomputeLayout();
     refreshAll();
   } else if (tool === 'addPath') {
     if (!loc) return;
@@ -511,6 +627,15 @@ canvas.addEventListener('mousedown', e => {
 });
 
 canvas.addEventListener('mouseup', () => {
+  if (bgDragCorner) { bgDragCorner = null; return; }
+  if (bgDragMove) { bgDragMove = null; return; }
+  if (dragging) {
+    const l = state.locations.find(l => l.id === dragging.id);
+    if (l) {
+      l.coordinates = posToCoordinate(pos[dragging.id]);
+      renderLocList();
+    }
+  }
   dragging = null;
   canvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
 });
@@ -557,13 +682,26 @@ function switchTab(name) {
 function addLocation() {
   const id   = document.getElementById('loc-id').value.trim();
   const desc = document.getElementById('loc-desc').value.trim();
+  const x    = parseFloat(document.getElementById('loc-x').value) || 0;
+  const y    = parseFloat(document.getElementById('loc-y').value) || 0;
   if (!id) return;
   if (state.locations.find(l => l.id === id)) { alert('Location ID already exists'); return; }
-  state.locations.push({ id, description: desc, coordinates: { x: 0.5, y: 0.5 } });
-  pos[id] = { x: 0.1 + Math.random() * 0.8, y: 0.1 + Math.random() * 0.8 };
+  state.locations.push({ id, description: desc, coordinates: { x, y } });
   document.getElementById('loc-id').value = '';
   document.getElementById('loc-desc').value = '';
+  document.getElementById('loc-x').value = '';
+  document.getElementById('loc-y').value = '';
+  recomputeLayout();
   refreshAll();
+}
+
+function setLocCoordinate(id, axis, val) {
+  const l = state.locations.find(l => l.id === id);
+  if (!l) return;
+  l.coordinates = l.coordinates || { x: 0, y: 0 };
+  l.coordinates[axis] = parseFloat(val) || 0;
+  recomputeLayout();
+  render();
 }
 
 function deleteLocation(id) {
@@ -579,7 +717,9 @@ function deleteLocation(id) {
 
 function renderLocList() {
   const el = document.getElementById('loc-list');
-  el.innerHTML = state.locations.map(l => `
+  el.innerHTML = state.locations.map(l => {
+    const c = l.coordinates || { x: 0, y: 0 };
+    return `
     <div class="card">
       <div class="card-header">
         <div>
@@ -591,7 +731,12 @@ function renderLocList() {
           <button class="btn btn-danger btn-sm" onclick="deleteLocation('${l.id}')">✕</button>
         </div>
       </div>
-    </div>`).join('');
+      <div class="row" style="margin-top:6px">
+        <div class="fg"><label>X</label><input type="number" step="any" value="${c.x}" onchange="setLocCoordinate('${l.id}','x',this.value)"></div>
+        <div class="fg"><label>Y</label><input type="number" step="any" value="${c.y}" onchange="setLocCoordinate('${l.id}','y',this.value)"></div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -601,13 +746,11 @@ function addPath() {
   const id   = document.getElementById('path-id').value.trim();
   const from = document.getElementById('path-from').value;
   const to   = document.getElementById('path-to').value;
-  const dist = parseFloat(document.getElementById('path-dist').value) || 1;
   const desc = document.getElementById('path-desc').value.trim();
   if (!id || !from || !to) return;
   if (state.paths.find(p => p.id === id)) { alert('Path ID already exists'); return; }
-  state.paths.push({ id, start_location: from, end_location: to, path_description: desc, distance: dist });
+  state.paths.push({ id, start_location: from, end_location: to, path_description: desc });
   document.getElementById('path-id').value = '';
-  document.getElementById('path-dist').value = '';
   document.getElementById('path-desc').value = '';
   refreshAll();
 }
@@ -624,7 +767,7 @@ function renderPathList() {
       <div class="card-header">
         <div>
           <div class="card-title">${p.id}</div>
-          <div class="card-sub">${p.start_location} → ${p.end_location} &nbsp;(dist: ${p.distance ?? '?'})</div>
+          <div class="card-sub">${p.start_location} → ${p.end_location}</div>
           ${p.path_description ? `<div class="card-sub">${p.path_description}</div>` : ''}
         </div>
         <div class="card-actions">
@@ -664,9 +807,8 @@ function deleteTask(id) {
 
 function renderTaskList() {
   const el = document.getElementById('task-list');
-  el.innerHTML = state.tasks.map(t => {
+  const concreteHtml = state.tasks.map(t => {
     const g = state.task_graph[t.id] || {};
-    const deps = (g.depends_on || []).join(', ') || '—';
     return `
     <div class="card" onmouseenter="hovTask='${t.id}';render()" onmouseleave="hovTask=null;render()">
       <div class="card-header">
@@ -676,6 +818,7 @@ function renderTaskList() {
           ${t.description ? `<div class="card-sub">${t.description}</div>` : ''}
           <div style="margin-top:4px">
             <span class="tag tag-blue">${g.dependency_type || 'AND'}</span>
+            ${t.start_end_location_interchangeable ? '<span class="tag tag-amber">⇄ interchangeable</span>' : ''}
             ${(g.depends_on||[]).map(d => `<span class="tag">${d}</span>`).join('')}
           </div>
         </div>
@@ -686,6 +829,32 @@ function renderTaskList() {
       </div>
     </div>`;
   }).join('');
+
+  // Virtual tasks: task_graph entries with no matching concrete task — no
+  // location/agent of their own, always OR, depends_on = the alternatives.
+  const virtualIds = Object.keys(state.task_graph).filter(id => isVirtual(id));
+  const virtualHtml = virtualIds.map(id => {
+    const g = state.task_graph[id] || { depends_on: [] };
+    return `
+    <div class="card" style="border-color:#fb923c">
+      <div class="card-header">
+        <div>
+          <div class="card-title">${id}</div>
+          <div class="card-sub">Virtual — choose one alternative</div>
+          <div style="margin-top:4px">
+            <span class="tag tag-amber">VIRTUAL · OR</span>
+            ${(g.depends_on||[]).length ? (g.depends_on||[]).map(d => `<span class="tag">${d}</span>`).join('') : '<span class="tag" style="color:#ef4444">no alternatives set!</span>'}
+          </div>
+        </div>
+        <div class="card-actions">
+          <button class="btn btn-secondary btn-sm" onclick="openVirtualNodeEditModal('${id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTask('${id}')">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = concreteHtml + (virtualIds.length ? `<div class="sec-title" style="margin:6px 0 2px">Virtual Tasks</div>${virtualHtml}` : '');
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -736,11 +905,21 @@ function loadConstraintsForm() {
   document.getElementById('c-max-dur').value     = c.max_duration ?? 100;
   document.getElementById('c-mission-prob').value = c.mission_probability_of_success ?? 0.95;
   document.getElementById('c-min-prob').value    = c.min_assignment_probability ?? 0.5;
-  document.getElementById('c-targets').value     = (c.tasks_to_be_completed || []).join(', ');
+
+  const allIds = [...new Set([...state.tasks.map(t=>t.id), ...Object.keys(state.task_graph)])];
+  const targets = c.tasks_to_be_completed || [];
+  const el = document.getElementById('c-targets-list');
+  el.innerHTML = allIds.length ? allIds.map(id => `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8;text-transform:none;letter-spacing:normal;width:100%;padding:3px 0">
+      <input type="checkbox" ${targets.includes(id)?'checked':''} onchange="toggleTarget('${id}',this.checked)">
+      ${id}${isVirtual(id) ? ' <span class="tag tag-amber">virtual</span>' : ''}
+    </label>`).join('') : '<span style="color:#64748b;font-size:11px">No tasks defined yet</span>';
 }
 function updateConstraint(key, val) { state.constraints[key] = val; }
-function updateTargets(val) {
-  state.constraints.tasks_to_be_completed = val.split(',').map(s=>s.trim()).filter(Boolean);
+function toggleTarget(id, checked) {
+  const targets = new Set(state.constraints.tasks_to_be_completed || []);
+  if (checked) targets.add(id); else targets.delete(id);
+  state.constraints.tasks_to_be_completed = [...targets];
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -760,7 +939,12 @@ function bgClick(e) { if (e.target === document.getElementById('modal-bg')) clos
 function openTaskEditModal(tid) {
   const t = state.tasks.find(t => t.id === tid);
   if (!t) return;
-  const g = state.task_graph[tid] || { depends_on: [], dependency_type: 'AND' };
+  if (!state.task_graph[tid]) state.task_graph[tid] = { depends_on: [], dependency_type: 'AND' };
+  const g = state.task_graph[tid];
+  // Concrete tasks (agent-assignable, real start/end locations) must always
+  // combine dependencies with AND — "OR" is reserved for virtual tasks. Self-
+  // correct here in case bad data (e.g. an old import) set it otherwise.
+  g.dependency_type = 'AND';
   const locOpts = state.locations.map(l => `<option value="${l.id}" ${l.id===t.start_location?'selected':''}>${l.id}</option>`).join('');
   const locOptsE = state.locations.map(l => `<option value="${l.id}" ${l.id===t.end_location?'selected':''}>${l.id}</option>`).join('');
   const allTaskIds = [...new Set([...state.tasks.map(t=>t.id), ...Object.keys(state.task_graph)])].filter(id => id !== tid);
@@ -787,12 +971,7 @@ function openTaskEditModal(tid) {
     </label>
     <div style="margin-top:4px">
       <div class="sec-title" style="margin-bottom:6px">Dependencies</div>
-      <div class="fg" style="margin-bottom:6px"><label>Type</label>
-        <select onchange="(state.task_graph['${tid}']||(state.task_graph['${tid}']={depends_on:[],dependency_type:'AND'})).dependency_type=this.value">
-          <option ${g.dependency_type==='AND'?'selected':''}>AND</option>
-          <option ${g.dependency_type==='OR'?'selected':''}>OR</option>
-        </select>
-      </div>
+      <p style="font-size:10px;color:#64748b;margin-bottom:6px">Concrete tasks always combine dependencies with <b>AND</b> (must-finish-first). To model "either of these" alternatives, use a virtual task instead.</p>
       <div style="max-height:160px;overflow-y:auto;background:#12161f;border-radius:6px;padding:8px">${depsHtml||'<span style="color:#64748b;font-size:11px">No other tasks defined yet</span>'}</div>
     </div>
     <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Done</button></div>
@@ -806,16 +985,46 @@ function toggleDep(tid, dep, checked) {
   if (!checked) g.depends_on = g.depends_on.filter(d => d !== dep);
 }
 
+// Virtual tasks have no agent/location of their own — their depends_on IS the
+// list of concrete alternatives to choose exactly one of, always via OR.
+function isVirtual(id) {
+  return !state.tasks.find(t => t.id === id);
+}
+
+function openVirtualNodeEditModal(vid) {
+  if (!state.task_graph[vid]) state.task_graph[vid] = { depends_on: [], dependency_type: 'OR' };
+  const g = state.task_graph[vid];
+  g.dependency_type = 'OR'; // always OR for virtual tasks — no dropdown needed
+  const allTaskIds = [...new Set([...state.tasks.map(t=>t.id), ...Object.keys(state.task_graph)])].filter(id => id !== vid);
+  const depsHtml = allTaskIds.map(id => `
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8;padding:3px 0">
+      <input type="checkbox" ${g.depends_on.includes(id)?'checked':''} onchange="toggleDep('${vid}','${id}',this.checked)">
+      ${id}
+    </label>`).join('');
+
+  openModal(`
+    <h2>Edit Virtual Task: ${vid}</h2>
+    <p style="font-size:11px;color:#64748b;margin-bottom:8px">Virtual tasks have no location or agent of their own. Check the concrete alternatives below — exactly one will be chosen at solve time (combinator is always <b>OR</b>).</p>
+    <div style="max-height:200px;overflow-y:auto;background:#12161f;border-radius:6px;padding:8px">${depsHtml||'<span style="color:#64748b;font-size:11px">No other tasks defined yet</span>'}</div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Done</button></div>
+  `);
+}
+
+function editTaskOrVirtual(id) {
+  if (isVirtual(id)) openVirtualNodeEditModal(id);
+  else openTaskEditModal(id);
+}
+
 // Task graph modal (for virtual nodes)
 function openTaskGraphModal() {
   const allIds = [...new Set([...state.tasks.map(t=>t.id), ...Object.keys(state.task_graph)])];
   const rows = allIds.map(id => {
-    const g = state.task_graph[id] || { depends_on: [], dependency_type: 'AND' };
+    const g = state.task_graph[id] || { depends_on: [], dependency_type: isVirtual(id) ? 'OR' : 'AND' };
     return `<div class="sub-item"><div class="sub-item-content">
-      <b>${id}</b> <span class="tag tag-blue">${g.dependency_type}</span><br>
+      <b>${id}</b> <span class="tag ${isVirtual(id)?'tag-amber':'tag-blue'}">${isVirtual(id) ? 'VIRTUAL · OR' : 'AND'}</span><br>
       <span style="font-size:10px;color:#64748b">→ ${g.depends_on.join(', ')||'(none)'}</span>
     </div>
-    <button class="btn btn-secondary btn-sm" onclick="closeModal();openTaskEditModal('${id}')">Edit</button>
+    <button class="btn btn-secondary btn-sm" onclick="closeModal();editTaskOrVirtual('${id}')">Edit</button>
     </div>`;
   }).join('');
   openModal(`
@@ -833,9 +1042,58 @@ function openTaskGraphModal() {
 function addVirtualNode() {
   const id = document.getElementById('vnode-id').value.trim();
   if (!id) return;
-  if (!state.task_graph[id]) state.task_graph[id] = { depends_on: [], dependency_type: 'AND' };
+  if (state.tasks.find(t => t.id === id)) { alert('A concrete task with this ID already exists'); return; }
+  if (!state.task_graph[id]) state.task_graph[id] = { depends_on: [], dependency_type: 'OR' };
   document.getElementById('vnode-id').value = '';
   openTaskGraphModal(); // refresh
+}
+
+// Background settings modal: grid spacing/visibility, and enabling the
+// background image's 4 corner resize handles.
+function applyBgSize() {
+  const x = parseFloat(document.getElementById('bg-x').value) || 0;
+  const y = parseFloat(document.getElementById('bg-y').value) || 0;
+  const w = parseFloat(document.getElementById('bg-w').value) || 1;
+  const h = parseFloat(document.getElementById('bg-h').value) || 1;
+  const tl = coordToNorm(x, y);
+  const br = coordToNorm(x + w, y + h);
+  bgRect = { x0: tl.x, y0: tl.y, x1: br.x, y1: br.y };
+  render();
+}
+
+function openBackgroundSettingsModal() {
+  const tlCoord = bgImage ? posToCoordinate({ x: bgRect.x0, y: bgRect.y0 }) : { x: 0, y: 0 };
+  const brCoord = bgImage ? posToCoordinate({ x: bgRect.x1, y: bgRect.y1 }) : { x: 1, y: 1 };
+  const bgSizeFields = bgImage ? `
+    <div class="sec-title" style="margin-top:6px">Background Position &amp; Size (same units as location X/Y)</div>
+    <div class="row">
+      <div class="fg"><label>X</label><input type="number" step="any" id="bg-x" value="${tlCoord.x}" oninput="applyBgSize()"></div>
+      <div class="fg"><label>Y</label><input type="number" step="any" id="bg-y" value="${tlCoord.y}" oninput="applyBgSize()"></div>
+    </div>
+    <div class="row">
+      <div class="fg"><label>Width</label><input type="number" step="any" id="bg-w" value="${(brCoord.x - tlCoord.x).toFixed(2)}" oninput="applyBgSize()"></div>
+      <div class="fg"><label>Height</label><input type="number" step="any" id="bg-h" value="${(brCoord.y - tlCoord.y).toFixed(2)}" oninput="applyBgSize()"></div>
+    </div>
+    <p style="font-size:10px;color:#64748b">Or drag the corner handles on the canvas directly, when enabled below.</p>
+  ` : '';
+  openModal(`
+    <h2>Background Settings</h2>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#94a3b8">
+      <input type="checkbox" ${showGrid?'checked':''} onchange="showGrid=this.checked;render()">
+      Show grid
+    </label>
+    <div class="fg"><label>Grid Spacing (same units as location X/Y)</label>
+      <input type="number" step="any" min="0.01" value="${gridSpacing}" oninput="gridSpacing=parseFloat(this.value)||0.1;render()">
+    </div>
+    ${bgSizeFields}
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#94a3b8">
+      <input type="checkbox" ${bgResizeMode?'checked':''} ${bgImage?'':'disabled'} onchange="bgResizeMode=this.checked;render()">
+      Enable background image resize handles${bgImage?'':' (upload a background image first)'}
+    </label>
+    ${bgResizeMode && bgImage ? '<p style="font-size:10px;color:#64748b">Drag a corner handle to resize, or drag anywhere inside the image to move it.</p>' : ''}
+    ${bgImage ? `<button class="btn btn-secondary btn-sm" onclick="bgRect={x0:0,y0:0,x1:1,y1:1};openBackgroundSettingsModal()">Reset image to full canvas</button>` : ''}
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">Done</button></div>
+  `);
 }
 
 // Agent modal
@@ -975,12 +1233,27 @@ function loadData(data) {
     });
   }
 
-  autoLayout();
+  // Sanitise dependency_type against the concrete/virtual split — imported
+  // data may predate this rule (concrete tasks must be AND, virtual OR).
+  for (const id of Object.keys(state.task_graph)) {
+    state.task_graph[id].dependency_type = isVirtual(id) ? 'OR' : 'AND';
+  }
+
+  recomputeLayout();
   refreshAll();
   loadConstraintsForm();
 }
 
-function autoLayout() {
+// layoutBounds records the coordinate→canvas normalisation currently in
+// effect, so canvas drags can be converted back into the same coordinate
+// units the user typed (or imported) rather than an arbitrary 0–100 scale.
+let layoutBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, pad: 0.12 };
+
+// Recompute every location's canvas position from its coordinates. Unlike
+// the old one-shot autoLayout(), this always re-derives pos so that typing
+// an exact X/Y in the sidebar (or adding a new location) repositions it
+// immediately, keeping coordinates as the single source of truth.
+function recomputeLayout() {
   const locs = state.locations;
   if (!locs.length) return;
   const xs = locs.map(l => l.coordinates?.x ?? 0);
@@ -989,9 +1262,8 @@ function autoLayout() {
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   const rx = maxX - minX || 1, ry = maxY - minY || 1;
   const pad = 0.12;
+  layoutBounds = { minX, maxX: minX + rx, minY, maxY: minY + ry, pad };
   for (const loc of locs) {
-    // Keep existing canvas position if already placed
-    if (pos[loc.id]) continue;
     const x = loc.coordinates?.x ?? 0;
     const y = loc.coordinates?.y ?? 0;
     pos[loc.id] = {
@@ -1001,12 +1273,19 @@ function autoLayout() {
   }
 }
 
+// Inverse of recomputeLayout()'s transform: canvas-normalised pos -> the
+// same coordinate units as loc.coordinates, so dragging on the canvas
+// updates the authoritative coordinates (and the sidebar X/Y fields).
+function posToCoordinate(p) {
+  const { minX, maxX, minY, maxY, pad } = layoutBounds;
+  const rx = maxX - minX || 1, ry = maxY - minY || 1;
+  return {
+    x: parseFloat((minX + ((p.x - pad) / (1 - 2*pad)) * rx).toFixed(2)),
+    y: parseFloat((minY + ((p.y - pad) / (1 - 2*pad)) * ry).toFixed(2))
+  };
+}
+
 function exportJSON() {
-  // Write back canvas positions to coordinates
-  for (const loc of state.locations) {
-    const p = pos[loc.id];
-    if (p) loc.coordinates = { x: parseFloat((p.x * 100).toFixed(1)), y: parseFloat((p.y * 100).toFixed(1)) };
-  }
   const out = {
     _comment: 'Locations',
     locations:   state.locations,
@@ -1031,7 +1310,7 @@ document.getElementById('bg-upload').addEventListener('change', e => {
   const reader = new FileReader();
   reader.onload = ev => {
     const img = new Image();
-    img.onload = () => { bgImage = img; render(); };
+    img.onload = () => { bgImage = img; bgRect = { x0: 0, y0: 0, x1: 1, y1: 1 }; render(); };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);

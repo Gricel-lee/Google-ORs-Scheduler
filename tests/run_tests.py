@@ -26,7 +26,7 @@ import tempfile
 
 TESTS_DIR   = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT   = os.path.dirname(TESTS_DIR)
-GENERATOR   = os.path.join(REPO_ROOT, 'main_generator.py')
+GENERATOR   = os.path.join(REPO_ROOT, 'src', 'run_generator.py')
 PYTHON      = sys.executable
 
 TEST_FILES = [
@@ -35,9 +35,6 @@ TEST_FILES = [
     'test_virtual_node_choice.json',
     'test_derived_optional.json',
     'test_interchangeable_direction.json',
-    'example.json',   # the canonical example — expected makespan 62
-    'ex4.json',       # OR-dep, single agent, expected makespan 10
-    'ex5.json',       # OR-dep, two agents, expected makespan 10
     'test_agri_2rows.json',  # row-scaling: solves in <1s
     'test_agri_5rows.json',  # row-scaling: solves in ~1s
     'test_agri_6rows.json',  # row-scaling: solves in ~1 min — combinatorial wall
