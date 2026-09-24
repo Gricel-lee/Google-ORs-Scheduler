@@ -24,9 +24,7 @@ solve it and produce a plan, run the generated file:
 .venv/bin/python3 <generated_file.py>
 ```
 
-This prints the plan to the console and also writes it to
-`<generated_file>plan.txt` (e.g. `test_virtual_node_choiceplan.txt`), next to
-the generated `.py` file.
+This prints the plan to the console and also writes it to `<generated_file>_plan.txt`, next to the generated `.py` file.
 
 ## Planning problem
 
